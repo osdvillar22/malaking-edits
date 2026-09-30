@@ -4,88 +4,140 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>Malaking Edits</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&family=Rock+Salt&display=swap" rel="stylesheet">
 <style>
+  /* Sketchbook theme: a notebook page drawn in pencil, ballpoint and highlighter */
   :root {
-    --bg: #f4f4f5; --panel: #ffffff; --text: #18181b; --muted: #71717a;
-    --border: #e4e4e7; --accent: #2563eb; --accent-text: #ffffff;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #09090b; --panel: #18181b; --text: #f4f4f5; --muted: #a1a1aa;
-      --border: #27272a; --accent: #3b82f6; --accent-text: #ffffff;
-    }
+    --paper: #fdfdf8;       /* notebook paper */
+    --rule: #d6e2ef;        /* faint blue ruled lines */
+    --margin: #efb4b4;      /* red margin line */
+    --ink: #2a2a30;         /* graphite pencil */
+    --pencil: #85858e;      /* light pencil for secondary text */
+    --pen: #1e3f9e;         /* blue ballpoint */
+    --marker: #ffe25e;      /* yellow highlighter */
+    --tape: rgba(236, 226, 196, .85);
+    --hand: "Patrick Hand", "Comic Sans MS", cursive;
+    --scrawl: "Rock Salt", "Patrick Hand", cursive;
+    --wobble-a: 255px 15px 225px 15px / 15px 225px 15px 255px;
+    --wobble-b: 15px 225px 15px 255px / 255px 15px 225px 15px;
+    --gutter: 64px;         /* space left of the margin line */
+    color-scheme: light;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; }
   body {
-    background: var(--bg); color: var(--text);
-    font: 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font: 18px/1.35 var(--hand); color: var(--ink);
     display: flex; flex-direction: column;
+    background-color: var(--paper);
+    background-image:
+      linear-gradient(90deg, transparent 0 46px, var(--margin) 46px 48px, transparent 48px),
+      repeating-linear-gradient(transparent 0 31px, var(--rule) 31px 32px);
   }
-  header {
-    display: flex; align-items: center; justify-content: space-between; gap: 12px;
-    padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--border);
+
+  /* hand-drawn pencil line under (or over) each strip */
+  header, .toolbar, .bottombar {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 8' preserveAspectRatio='none'%3E%3Cpath d='M0 4 C 20 1, 40 7, 60 4 S 100 2, 120 4' fill='none' stroke='%232a2a30' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: repeat-x; background-position: bottom; background-size: 240px 8px;
   }
-  header h1 { font-size: 17px; margin: 0; }
-  button, .btn {
-    font: inherit; border: 1px solid var(--border); background: var(--panel); color: var(--text);
-    padding: 8px 12px; border-radius: 8px; cursor: pointer; white-space: nowrap;
-    display: inline-flex; align-items: center; gap: 6px; min-height: 38px;
-    user-select: none; -webkit-user-select: none;
+  .bottombar { background-position: top; }
+
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 20px 14px var(--gutter); }
+  header h1 { font: 400 23px/1.2 var(--scrawl); margin: 0; letter-spacing: .5px; }
+  header h1 span { background: linear-gradient(transparent 55%, var(--marker) 55% 92%, transparent 92%); padding: 0 4px; }
+
+  /* ---------- sketchy buttons: the outline is drawn on ::before and roughened ---------- */
+  button {
+    position: relative; isolation: isolate;
+    font: 400 18px/1 var(--hand); color: var(--ink);
+    background: none; border: 0; padding: 8px 15px; min-height: 40px;
+    display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+    cursor: pointer; user-select: none; -webkit-user-select: none;
+    transition: transform .12s ease;
   }
-  button:hover:not(:disabled), .btn:hover { border-color: var(--muted); }
-  button:disabled { opacity: .45; cursor: default; }
-  button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
-  button.active { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  button::before {
+    content: ""; position: absolute; inset: 0; z-index: -1;
+    border: 2px solid var(--ink); border-radius: var(--wobble-a);
+    background: var(--paper); filter: url(#rough);
+  }
+  button:nth-child(even)::before { border-radius: var(--wobble-b); }
+  button:hover:not(:disabled) { transform: rotate(-1.5deg); }
+  button:active:not(:disabled) { transform: translate(1px, 2px); }
+  button:disabled { opacity: .38; cursor: default; }
+  button:focus-visible { outline: 2px dashed var(--pen); outline-offset: 5px; }
+  button.active::before { background: var(--marker); }
+  button.primary { color: #fff; }
+  button.primary::before { background: var(--pen); border-color: var(--pen); box-shadow: 3px 3px 0 var(--ink); }
+  #compareBtn.active::before { background: #ffb870; }
+  .pill { font-size: 16px; min-height: 32px; padding: 5px 11px; }
 
   main { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  #editor { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  #editor.empty #stage, #editor:not(.empty) #drop { display: none; }
+  #editor.empty .toolbar, #editor.empty .bottombar { pointer-events: none; }
+  #editor.empty .toolbar > *, #editor.empty .bottombar > * { opacity: .4; }
+  #brushOpts, #magicOpts { margin-right: 6px; }
 
-  /* Upload screen */
+  .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 10px 20px 16px var(--gutter); }
+  .group { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .sep { width: 2px; height: 28px; background: var(--ink); opacity: .25; border-radius: 2px; transform: rotate(4deg); }
+  .toolbar label, .bglabel { display: flex; align-items: center; gap: 8px; font-size: 17px; }
+  .hint { flex-basis: 100%; color: var(--pen); font-size: 17px; transform: rotate(-.4deg); }
+  .hint b { font-weight: 400; background: linear-gradient(transparent 60%, var(--marker) 60%); }
+  #expandPanel { display: none; }
+  #expandPanel.open { display: flex; }
+
+  /* ---------- pencil sliders ---------- */
+  input[type=range] { -webkit-appearance: none; appearance: none; width: 110px; height: 24px; background: none; cursor: pointer; }
+  input[type=range]::-webkit-slider-runnable-track { height: 3px; background: var(--ink); border-radius: 3px; }
+  input[type=range]::-moz-range-track { height: 3px; background: var(--ink); border-radius: 3px; }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 18px; height: 18px; margin-top: -8px;
+    border: 2px solid var(--ink); border-radius: 50% 42% 55% 47%; background: var(--marker);
+  }
+  input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border: 2px solid var(--ink); border-radius: 50% 42% 55% 47%; background: var(--marker); }
+  input[type=range]:focus-visible { outline: 2px dashed var(--pen); outline-offset: 3px; }
+
+  /* ---------- position grid ---------- */
+  .anchor { display: grid; grid-template-columns: repeat(3, 18px); gap: 4px; }
+  .anchor button { width: 18px; height: 18px; min-height: 0; padding: 0; }
+  .anchor button.active::before { background: var(--ink); }
+
+  /* ---------- home: hand-drawn drop box ---------- */
   #drop {
-    flex: 1; margin: 16px; border: 2px dashed var(--border); border-radius: 16px;
+    flex: 1; margin: 18px 24px 24px calc(var(--gutter) + 8px); position: relative; isolation: isolate;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     gap: 12px; text-align: center; padding: 24px; cursor: pointer;
   }
-  #drop.over { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
-  #drop p { margin: 0; color: var(--muted); max-width: 420px; }
-  #drop .big { font-size: 20px; color: var(--text); font-weight: 600; }
+  #drop::before {
+    content: ""; position: absolute; inset: 0; z-index: -1;
+    border: 2.5px dashed var(--ink); border-radius: 18px 30px 22px 28px / 26px 18px 30px 20px; filter: url(#rough-big);
+  }
+  #drop.over::before { background: rgba(255, 226, 94, .35); }
+  #drop .big { font: 400 26px/1.3 var(--scrawl); }
+  #drop p { margin: 0; max-width: 440px; color: var(--pencil); }
 
-  /* Progress */
-  #busy {
-    position: fixed; inset: 0; background: rgba(0,0,0,.55); display: none;
-    align-items: center; justify-content: center; z-index: 10; padding: 16px;
+  /* ---------- the page / taped photo ---------- */
+  #stage { flex: 1; overflow: auto; min-height: 0; display: flex; padding: 40px 34px 40px var(--gutter); }
+  #wrap {
+    margin: auto; position: relative; flex: none; touch-action: none;
+    box-shadow: 1px 2px 0 rgba(0,0,0,.06), 0 10px 22px -6px rgba(40,40,60,.28);
   }
-  #busy .card {
-    background: var(--panel); border-radius: 14px; padding: 20px 24px; width: min(360px, 100%);
-    text-align: center;
-  }
-  #busy .bar { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; margin-top: 12px; }
-  #busy .bar > div { height: 100%; width: 0; background: var(--accent); transition: width .2s; }
-  #busy small { display: block; color: var(--muted); margin-top: 8px; }
-
-  /* Editor */
-  #editor { flex: 1; display: flex; flex-direction: column; min-height: 0; }
-  #editor.empty #stage, #editor:not(.empty) #drop { display: none; }
-  #editor.empty .toolbar, #editor.empty .bottombar { opacity: .45; pointer-events: none; }
-  .toolbar {
-    display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
-    padding: 8px 16px; background: var(--panel); border-bottom: 1px solid var(--border);
-  }
-  .group { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-  .sep { width: 1px; height: 26px; background: var(--border); }
-  .toolbar label, .bglabel { color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 6px; }
-  .toolbar input[type=range] { width: 100px; }
-  #stage { flex: 1; overflow: auto; min-height: 0; display: flex; padding: 16px; }
-  #wrap { margin: auto; position: relative; flex: none; box-shadow: 0 0 0 1px rgba(128,128,128,.35); }
   #wrap.checker, .swatch.checker {
     background-color: #fff;
     background-image:
-      linear-gradient(45deg, #d4d4d8 25%, transparent 25%), linear-gradient(-45deg, #d4d4d8 25%, transparent 25%),
-      linear-gradient(45deg, transparent 75%, #d4d4d8 75%), linear-gradient(-45deg, transparent 75%, #d4d4d8 75%);
+      linear-gradient(45deg, #e4e4e7 25%, transparent 25%), linear-gradient(-45deg, #e4e4e7 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #e4e4e7 75%), linear-gradient(-45deg, transparent 75%, #e4e4e7 75%);
     background-size: 20px 20px; background-position: 0 0, 0 10px, 10px -10px, -10px 0;
   }
   .swatch.checker { background-size: 10px 10px; background-position: 0 0, 0 5px, 5px -5px, -5px 0; }
-  #wrap { touch-action: none; }
+  .tape {
+    position: absolute; width: var(--tw, 90px); height: calc(var(--tw, 90px) * .29); background: var(--tape); z-index: 4; pointer-events: none;
+    clip-path: polygon(0 8%, 4% 0, 8% 10%, 12% 0, 100% 0, 96% 12%, 100% 25%, 96% 40%, 100% 55%, 96% 70%, 100% 85%, 96% 100%, 0 100%, 4% 88%, 0 72%, 4% 58%, 0 42%, 4% 28%);
+  }
+  .tape.tl { top: calc(var(--tw, 90px) * -.07); left: calc(var(--tw, 90px) * -.25); transform: rotate(-38deg); }
+  .tape.br { bottom: calc(var(--tw, 90px) * -.07); right: calc(var(--tw, 90px) * -.25); transform: rotate(-38deg); }
   #canvas { display: block; position: absolute; }
   #bgView { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; display: none; }
   #wrap > .orig { position: absolute; pointer-events: none; visibility: hidden; z-index: 2; }
@@ -93,49 +145,83 @@
   #stage.tool-move #wrap { cursor: grab; }
   #stage.tool-magic #wrap { cursor: crosshair; }
   #stage.tool-erase #wrap, #stage.tool-restore #wrap { cursor: none; }
-  #expandBtn.active { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
-  #expandPanel { display: none; }
-  #expandPanel.open { display: flex; }
-  .anchor { display: grid; grid-template-columns: repeat(3, 18px); gap: 3px; }
-  .anchor button { width: 18px; height: 18px; min-height: 0; padding: 0; border-radius: 4px; }
-  .anchor button.active { background: var(--accent); border-color: var(--accent); }
-  .hint { color: var(--muted); font-size: 12px; flex-basis: 100%; }
   #cursor {
     position: fixed; pointer-events: none; border-radius: 50%; display: none; z-index: 5;
-    border: 1.5px solid #fff; box-shadow: 0 0 0 1px #000, inset 0 0 0 1px #000;
+    border: 1.5px solid #fff; box-shadow: 0 0 0 1px var(--ink), inset 0 0 0 1px var(--ink);
   }
-  #compareBtn.active { background: #f59e0b; border-color: #f59e0b; color: #000; }
-  .bottombar {
-    display: flex; flex-wrap: wrap; gap: 8px 16px; justify-content: space-between; align-items: center;
-    padding: 10px 16px; background: var(--panel); border-top: 1px solid var(--border);
+
+  /* ---------- bottom bar & swatches ---------- */
+  .bottombar { display: flex; flex-wrap: wrap; gap: 10px 18px; justify-content: space-between; align-items: center; padding: 16px 20px 14px var(--gutter); }
+  .bottombar .info { color: var(--pencil); font-size: 16px; }
+  .swatch { width: 32px; height: 32px; min-height: 0; padding: 0; border-radius: 50%; }
+  .swatch::before, .swatch.active::before { border-radius: 50% 44% 53% 47%; background: transparent; }
+  .swatch.active::after {
+    content: ""; position: absolute; inset: -7px; border: 2px solid var(--pen);
+    border-radius: 47% 53% 45% 55%; filter: url(#rough);
   }
-  .bottombar .info { color: var(--muted); font-size: 12px; }
-  .swatch {
-    width: 30px; height: 30px; padding: 0; min-height: 0; border-radius: 50%;
-    overflow: hidden; position: relative;
-  }
-  .swatch.active { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .swatch input[type=color] { position: absolute; inset: -8px; width: 50px; height: 50px; border: 0; padding: 0; cursor: pointer; opacity: 0; }
-  #bgColorSwatch { background: conic-gradient(red, yellow, lime, cyan, blue, magenta, red); }
-  .pill { min-height: 30px; padding: 4px 10px; font-size: 13px; }
-  .pill.active { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .swatch input[type=color] { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; padding: 0; cursor: pointer; opacity: 0; }
+  #bgColorSwatch { background: conic-gradient(#f87171, #facc15, #4ade80, #38bdf8, #a78bfa, #f87171); }
+
+  /* ---------- sticky-note messages ---------- */
   #toast {
-    position: fixed; left: 50%; bottom: 80px; transform: translateX(-50%); background: #18181b; color: #fff;
-    padding: 8px 14px; border-radius: 8px; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 20;
+    position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%) rotate(-2deg);
+    max-width: min(260px, 80vw); padding: 14px 16px 16px; background: #fff27a; color: var(--ink);
+    font-size: 18px; box-shadow: 0 12px 18px -10px rgba(0,0,0,.35);
+    opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 20;
   }
-  @media (max-width: 640px) {
-    .toolbar { padding: 8px; gap: 6px; }
-    .sep { display: none; }
-    .toolbar input[type=range] { width: 80px; }
-    button { padding: 7px 10px; }
-    .hide-sm { display: none; }
-    .bottombar { padding: 8px; }
+
+  /* ---------- loading: an index card ---------- */
+  #busy {
+    position: fixed; inset: 0; background: rgba(253,253,248,.72); backdrop-filter: blur(2px); display: none;
+    align-items: center; justify-content: center; z-index: 30; padding: 16px;
   }
+  #busy .card {
+    width: min(360px, 100%); padding: 22px 26px 26px; text-align: center; transform: rotate(-1.2deg); font-size: 22px;
+    background-color: #fff;
+    background-image: linear-gradient(transparent 0 44px, #f0a6a6 44px 46px, transparent 46px), repeating-linear-gradient(transparent 0 27px, var(--rule) 27px 28px);
+    box-shadow: 0 14px 26px -10px rgba(0,0,0,.35);
+  }
+  #busy .bar { position: relative; height: 22px; margin-top: 18px; isolation: isolate; }
+  #busy .bar::before { content: ""; position: absolute; inset: 0; border: 2px solid var(--ink); border-radius: var(--wobble-a); filter: url(#rough); }
+  #busy .bar > div {
+    position: absolute; left: 4px; top: 4px; bottom: 4px; width: 0; max-width: calc(100% - 8px); z-index: -1; transition: width .2s;
+    background: repeating-linear-gradient(-55deg, var(--pen) 0 2px, transparent 2px 7px);
+  }
+  #busy small { display: block; color: var(--pencil); margin-top: 10px; font-size: 16px; }
+
+  @media (max-width: 700px) {
+    :root { --gutter: 30px; }
+    body { background-image: linear-gradient(90deg, transparent 0 18px, var(--margin) 18px 19.5px, transparent 19.5px), repeating-linear-gradient(transparent 0 31px, var(--rule) 31px 32px); }
+    header, .toolbar, .bottombar { padding-right: 12px; }
+    header h1 { font-size: 19px; }
+    #stage { padding: 34px 26px 34px var(--gutter); }
+    #drop { margin: 14px 14px 18px calc(var(--gutter) + 4px); }
+    #drop .big { font-size: 21px; }
+    .sep, .hint { display: none; }
+    button { font-size: 17px; padding: 7px 12px; min-height: 38px; }
+    input[type=range] { width: 84px; }
+    /* one swipeable row per toolbar so the photo keeps its space */
+    .toolbar, .bottombar > .group:first-child { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+    .toolbar { padding-top: 8px; padding-bottom: 12px; }
+    .toolbar::-webkit-scrollbar, .bottombar > .group:first-child::-webkit-scrollbar { display: none; }
+    .toolbar .group { flex-wrap: nowrap; }
+    .toolbar > *, .group > * { flex: none; }
+    .bottombar { flex-direction: column; align-items: stretch; gap: 8px; }
+    .bottombar > .group:first-child { padding: 8px 4px; }
+    .bottombar > .group:last-child { justify-content: flex-end; }
+    .bottombar .info { margin-right: auto; }
+  }
+  @media (prefers-reduced-motion: reduce) { button, #toast { transition: none; } button:hover:not(:disabled) { transform: none; } }
 </style>
 </head>
 <body>
+<!-- Wobbly pencil lines: every outline passes through these filters -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <filter id="rough"><feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="4"/><feDisplacementMap in="SourceGraphic" scale="3.2"/></filter>
+  <filter id="rough-big"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="9"/><feDisplacementMap in="SourceGraphic" scale="6"/></filter>
+</svg>
 <header>
-  <h1>Malaking Edits</h1>
+  <h1>Malaking <span>Edits</span></h1>
   <button id="newBtn" style="display:none">New photo</button>
 </header>
 
@@ -143,7 +229,9 @@
   <input id="file" type="file" accept="image/*" hidden>
   <section id="editor" class="empty">
     <div class="toolbar">
-      <button id="removeBgBtn" class="primary" title="Remove the background with AI">✨ Remove background</button>
+      <button id="removeBgBtn" class="primary" title="Remove the background with AI">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.5l2.4 6.3 6.6.4-5.1 4.2 1.7 6.5L12 16.3l-5.6 3.6 1.7-6.5L3 9.2l6.6-.4z"/></svg>
+        Remove background</button>
       <div class="sep"></div>
       <div class="group">
         <button id="toolErase" title="Erase leftover background (E)">Erase</button>
@@ -159,7 +247,6 @@
       <div class="group" id="magicOpts" style="display:none">
         <label>Tolerance <input id="tol" type="range" min="1" max="80" value="20"></label>
       </div>
-      <div class="sep"></div>
       <div class="group">
         <button id="zoomOut" title="Zoom out">−</button>
         <button id="zoomFit" title="Fit to screen">Fit</button>
@@ -199,17 +286,22 @@
         <button class="pill" data-ext="stretch">Stretch</button>
       </div>
       <button class="pill" id="expandReset">Reset</button>
-      <span class="hint">The new space is filled with the Background chosen below — e.g. <b>1:1</b> + <b>White</b> makes a square photo with white space. Pick <b>Original</b> to extend the photo's own background.</span>
+      <span class="hint">→ The new space takes the Background chosen below. <b>1:1</b> + <b>White</b> makes a square photo with white space; <b>Original</b> extends the photo's own background.</span>
     </div>
 
     <label id="drop" for="file">
-      <div class="big">Tap or drop a photo here</div>
-      <p>Everything happens on your device. Your photo is never uploaded or stored anywhere.</p>
-      <p><small>Remove the background, erase, add a border or expand to a square — pick the tools you need.</small></p>
+      <svg width="120" height="92" viewBox="0 0 120 92" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="filter:url(#rough)" aria-hidden="true">
+        <rect x="6" y="8" width="108" height="78" rx="6"/>
+        <path d="M14 76 L44 44 L62 62 L78 48 L106 76"/>
+        <circle cx="86" cy="28" r="9"/>
+      </svg>
+      <div class="big">Drop a photo here</div>
+      <p>or tap to pick one. Everything happens on your device — your photo is never uploaded.</p>
     </label>
 
     <div id="stage" class="tool-move">
       <div id="wrap" class="checker">
+        <span class="tape tl"></span><span class="tape br"></span>
         <canvas id="bgView"></canvas>
         <canvas id="canvas"></canvas>
       </div>
@@ -336,9 +428,9 @@ $("removeBgBtn").onclick = async () => {
       output: { format: "image/png", quality: 1 },
       progress: (key, cur, total) => {
         if (key.startsWith("fetch")) {
-          $("busyText").textContent = "Downloading AI model (first time only)…";
+          $("busyText").textContent = "Getting the AI ready…";
           $("busyBar").style.width = Math.round((cur / total) * 100) + "%";
-          $("busySub").textContent = `${(cur / 1e6).toFixed(0)} / ${(total / 1e6).toFixed(0)} MB`;
+          $("busySub").textContent = `${(cur / 1e6).toFixed(0)} / ${(total / 1e6).toFixed(0)} MB · first time only`;
         } else {
           $("busyText").textContent = "Removing background…";
           $("busyBar").style.width = total ? Math.round((cur / total) * 100) + "%" : "60%";
@@ -365,8 +457,9 @@ $("removeBgBtn").onclick = async () => {
 
 // ---------- Zoom ----------
 function fitScale() {
-  const pad = 32;
-  const sw = stage.clientWidth - pad, sh = stage.clientHeight - pad;
+  const cs = getComputedStyle(stage);
+  const sw = stage.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+  const sh = stage.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
   return Math.min(sw / doc.w, sh / doc.h, 1);
 }
 function applyZoom(anchor) {
@@ -374,6 +467,8 @@ function applyZoom(anchor) {
   const s = fitScale() * zoom;
   wrap.style.width = doc.w * s + "px";
   wrap.style.height = doc.h * s + "px";
+  // tape pieces stay in proportion to the photo on the page
+  wrap.style.setProperty("--tw", Math.round(Math.max(26, Math.min(90, Math.min(doc.w, doc.h) * s * 0.22))) + "px");
   for (const el of [canvas, original]) {
     Object.assign(el.style, {
       left: doc.ox * s + "px", top: doc.oy * s + "px",
@@ -392,7 +487,8 @@ function setZoom(z, anchor) { zoom = Math.max(1, Math.min(z, 16)); applyZoom(anc
 $("zoomIn").onclick = () => setZoom(zoom * 1.5);
 $("zoomOut").onclick = () => setZoom(zoom / 1.5);
 $("zoomFit").onclick = () => setZoom(1);
-window.addEventListener("resize", () => original && applyZoom());
+// Re-fit whenever the photo area changes size (window resize, toolbars wrapping, Expand panel opening)
+new ResizeObserver(() => original && applyZoom()).observe(stage);
 stage.addEventListener("wheel", (e) => {
   if (!original || !(e.ctrlKey || e.metaKey)) return;
   e.preventDefault();
