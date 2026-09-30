@@ -64,7 +64,9 @@
   #busy small { display: block; color: var(--muted); margin-top: 8px; }
 
   /* Editor */
-  #editor { flex: 1; display: none; flex-direction: column; min-height: 0; }
+  #editor { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  #editor.empty #stage, #editor:not(.empty) #drop { display: none; }
+  #editor.empty .toolbar, #editor.empty .bottombar { opacity: .45; pointer-events: none; }
   .toolbar {
     display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
     padding: 8px 16px; background: var(--panel); border-bottom: 1px solid var(--border);
@@ -138,23 +140,19 @@
 </header>
 
 <main>
-  <label id="drop">
-    <input id="file" type="file" accept="image/*" hidden>
-    <div class="big">Tap or drop a photo here</div>
-    <p>The background is removed right on your device. Your photo is never uploaded or stored anywhere.</p>
-    <p><small>The first run downloads the AI model (about 90 MB). After that, it loads from your browser's cache.</small></p>
-  </label>
-
-  <section id="editor">
+  <input id="file" type="file" accept="image/*" hidden>
+  <section id="editor" class="empty">
     <div class="toolbar">
+      <button id="removeBgBtn" class="primary" title="Remove the background with AI">✨ Remove background</button>
+      <div class="sep"></div>
       <div class="group">
-        <button id="toolErase" class="active" title="Erase leftover background (E)">Erase</button>
+        <button id="toolErase" title="Erase leftover background (E)">Erase</button>
         <button id="toolMagic" title="Tap a leftover patch to erase similar connected colors (M)">Magic</button>
         <button id="toolRestore" title="Paint back parts of the original photo (R)">Restore</button>
-        <button id="toolMove" title="Drag to move around when zoomed in (hold Space)">Move</button>
+        <button id="toolMove" class="active" title="Drag to move around when zoomed in (hold Space)">Move</button>
       </div>
       <div class="sep"></div>
-      <div class="group" id="brushOpts">
+      <div class="group" id="brushOpts" style="display:none">
         <label>Size <input id="size" type="range" min="4" max="150" value="30"></label>
         <label>Softness <input id="soft" type="range" min="0" max="100" value="40"></label>
       </div>
@@ -188,7 +186,7 @@
         <button class="pill" data-ratio="3:2">3:2</button>
       </div>
       <div class="sep"></div>
-      <label>Extra space <input id="pad" type="range" min="0" max="60" value="0"></label>
+      <label>Border / extra space <input id="pad" type="range" min="0" max="60" value="0"></label>
       <div class="sep"></div>
       <div class="group">
         <span class="bglabel">Position</span>
@@ -201,10 +199,16 @@
         <button class="pill" data-ext="stretch">Stretch</button>
       </div>
       <button class="pill" id="expandReset">Reset</button>
-      <span class="hint">The new space is filled with the Background chosen below. Pick <b>Original</b> to extend the photo's own background.</span>
+      <span class="hint">The new space is filled with the Background chosen below — e.g. <b>1:1</b> + <b>White</b> makes a square photo with white space. Pick <b>Original</b> to extend the photo's own background.</span>
     </div>
 
-    <div id="stage" class="tool-erase">
+    <label id="drop" for="file">
+      <div class="big">Tap or drop a photo here</div>
+      <p>Everything happens on your device. Your photo is never uploaded or stored anywhere.</p>
+      <p><small>Remove the background, erase, add a border or expand to a square — pick the tools you need.</small></p>
+    </label>
+
+    <div id="stage" class="tool-move">
       <div id="wrap" class="checker">
         <canvas id="bgView"></canvas>
         <canvas id="canvas"></canvas>
@@ -253,7 +257,7 @@ const cursorEl = $("cursor");
 
 let original = null;      // canvas holding the original photo at full size (also used as the compare overlay)
 let fileBase = "image";
-let tool = "erase";
+let tool = "move";
 let zoom = 1;             // 1 = fit to screen
 let bg = { type: "transparent" };
 let bgPhoto = null;
@@ -268,14 +272,12 @@ function toast(msg) {
 }
 
 // ---------- Upload ----------
-fileInput.addEventListener("change", () => fileInput.files[0] && handleFile(fileInput.files[0]));
-["dragenter", "dragover"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("over"); }));
-["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("over"); }));
-drop.addEventListener("drop", (e) => { const f = e.dataTransfer.files[0]; if (f) handleFile(f); });
-$("newBtn").addEventListener("click", () => {
-  editor.style.display = "none"; drop.style.display = "flex"; $("newBtn").style.display = "none";
-  fileInput.value = ""; original?.remove(); original = null; undoStack.length = redoStack.length = 0;
-});
+fileInput.addEventListener("change", () => { if (fileInput.files[0]) handleFile(fileInput.files[0]); fileInput.value = ""; });
+// Drop a photo anywhere on the page, any time
+["dragenter", "dragover"].forEach((ev) => document.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave", "drop"].forEach((ev) => document.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("over"); }));
+document.addEventListener("drop", (e) => { const f = e.dataTransfer.files[0]; if (f) handleFile(f); });
+$("newBtn").addEventListener("click", () => fileInput.click());
 
 function loadImage(src) {
   return new Promise((res, rej) => { const img = new Image(); img.onload = () => res(img); img.onerror = rej; img.src = src; });
@@ -292,8 +294,6 @@ function showBusy(on, text = "Removing background…") {
 
 async function handleFile(file) {
   if (!file.type.startsWith("image/")) { alert("Please choose an image file."); return; }
-  fileBase = file.name.replace(/\.[^.]+$/, "") || "image";
-  showBusy(true);
   try {
     // Load the original with the phone's rotation already applied
     const img = await loadFile(file);
@@ -302,9 +302,36 @@ async function handleFile(file) {
     orig.width = w; orig.height = h; orig.className = "orig";
     orig.getContext("2d").drawImage(img, 0, 0);
 
-    // Send the already-oriented pixels so the mask lines up exactly
-    const srcBlob = await new Promise((r) => orig.toBlob(r, "image/png"));
-    const resultBlob = await removeBackground(srcBlob, {
+    fileBase = file.name.replace(/\.[^.]+$/, "") || "image";
+    original?.remove();
+    original = orig;
+    wrap.appendChild(original);
+    cutout = null; removed = false;
+    canvas.width = w; canvas.height = h;
+    ctx.clearRect(0, 0, w, h);
+    ctx.drawImage(original, 0, 0);
+
+    undoStack.length = redoStack.length = 0; updateHistoryButtons();
+    editor.classList.remove("empty"); $("newBtn").style.display = "";
+    setTool("move");
+    resetExpand();
+  } catch (err) {
+    console.error(err);
+    alert("Couldn't open that image: " + (err?.message || err));
+  }
+}
+
+// ---------- Remove background (only when asked) ----------
+let cutout = null;     // cached AI result for the current photo
+let removed = false;   // whether the canvas currently holds the AI cutout
+$("removeBgBtn").onclick = async () => {
+  if (!original) return;
+  showBusy(true);
+  try {
+    if (!cutout) {
+      // Send the already-oriented pixels so the mask lines up exactly
+      const srcBlob = await new Promise((r) => original.toBlob(r, "image/png"));
+      const resultBlob = await removeBackground(srcBlob, {
       model: "isnet_fp16",
       output: { format: "image/png", quality: 1 },
       progress: (key, cur, total) => {
@@ -319,26 +346,22 @@ async function handleFile(file) {
         }
       },
     });
-    const resImg = await loadFile(resultBlob);
-
-    // Output stays exactly the same pixel size as the original
-    original?.remove();
-    original = orig;
-    wrap.appendChild(original);
-    canvas.width = w; canvas.height = h;
-    ctx.clearRect(0, 0, w, h);
-    ctx.drawImage(resImg, 0, 0, w, h);
-
-    undoStack.length = redoStack.length = 0; updateHistoryButtons();
-    drop.style.display = "none"; editor.style.display = "flex"; $("newBtn").style.display = "";
-    resetExpand();
+      cutout = await loadFile(resultBlob);
+    }
+    pushUndo();
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(cutout, 0, 0, canvas.width, canvas.height);
+    removed = true;
+    afterEdit();
+    if (tool === "move") setTool("erase");
+    toast("Background removed. Use Erase / Magic / Restore to touch up");
   } catch (err) {
     console.error(err);
     alert("Something went wrong: " + (err?.message || err));
   } finally {
     showBusy(false);
   }
-}
+};
 
 // ---------- Zoom ----------
 function fitScale() {
@@ -434,6 +457,7 @@ function backgroundPlate() {
   const levels = [makeCanvas(original.width, original.height)];
   const x0 = levels[0].getContext("2d");
   x0.drawImage(original, 0, 0);
+  if (!removed) return levels[0];
   x0.globalCompositeOperation = "destination-out";
   // remove a slightly larger area than the subject so its soft edges don't bleed into the fill
   const d = Math.max(2, Math.round(Math.max(original.width, original.height) * 0.012));
@@ -520,7 +544,13 @@ function layout() {
     const [a, b] = expand.ratio.split(":").map(Number), r = a / b;
     if (w / h < r) W = Math.round(h * r); else H = Math.round(w / r);
   }
-  W = Math.round(W * (1 + expand.pad / 100)); H = Math.round(H * (1 + expand.pad / 100));
+  if (expand.ratio === "orig") {
+    // even border on all sides (like a photo frame)
+    const b = Math.round(Math.max(W, H) * expand.pad / 100);
+    W += b; H += b;
+  } else {
+    W = Math.round(W * (1 + expand.pad / 100)); H = Math.round(H * (1 + expand.pad / 100));
+  }
   doc = { w: W, h: H, ox: Math.round((W - w) * expand.ax), oy: Math.round((H - h) * expand.ay) };
   const grown = W !== w || H !== h;
   $("info").textContent = `${W} × ${H} px` + (grown ? ` (photo ${w} × ${h})` : "");
@@ -597,14 +627,15 @@ function snapshot() {
   c.getContext("2d").drawImage(canvas, 0, 0);
   return c;
 }
-function restoreFrom(c) { ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.drawImage(c, 0, 0); }
+function restoreFrom(s) { ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.drawImage(s.c, 0, 0); removed = s.removed; }
+const state = () => ({ c: snapshot(), removed });
 function pushUndo() {
-  undoStack.push(snapshot());
+  undoStack.push(state());
   if (undoStack.length > MAX_HISTORY) undoStack.shift();
   redoStack.length = 0; updateHistoryButtons();
 }
-function undo() { if (!undoStack.length) return; redoStack.push(snapshot()); restoreFrom(undoStack.pop()); updateHistoryButtons(); afterEdit(); }
-function redo() { if (!redoStack.length) return; undoStack.push(snapshot()); restoreFrom(redoStack.pop()); updateHistoryButtons(); afterEdit(); }
+function undo() { if (!undoStack.length) return; redoStack.push(state()); restoreFrom(undoStack.pop()); updateHistoryButtons(); afterEdit(); }
+function redo() { if (!redoStack.length) return; undoStack.push(state()); restoreFrom(redoStack.pop()); updateHistoryButtons(); afterEdit(); }
 // Backgrounds built from the photo's background need refreshing after the cutout changes
 let editTimer;
 function afterEdit() {
@@ -795,7 +826,7 @@ function outputCanvas() {
 }
 const outName = () => {
   const grown = doc.w !== canvas.width || doc.h !== canvas.height;
-  const tag = bg.type === "transparent" ? "no-bg" : bg.type === "original" ? "edited" : "new-bg";
+  const tag = removed ? (bg.type === "transparent" ? "no-bg" : bg.type === "original" ? "edited" : "new-bg") : "edited";
   return `${fileBase}-${tag}${grown ? "-expanded" : ""}.png`;
 };
 function getBlob() { return new Promise((r) => outputCanvas().toBlob(r, "image/png")); }
