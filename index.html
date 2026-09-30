@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <title>Malaking Edits</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -27,6 +27,7 @@
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; }
+  body { height: 100dvh; }
   body {
     font: 18px/1.35 var(--hand); color: var(--ink);
     display: flex; flex-direction: column;
@@ -206,10 +207,22 @@
     .toolbar::-webkit-scrollbar, .bottombar > .group:first-child::-webkit-scrollbar { display: none; }
     .toolbar .group { flex-wrap: nowrap; }
     .toolbar > *, .group > * { flex: none; }
-    .bottombar { flex-direction: column; align-items: stretch; gap: 8px; }
+    .bottombar { flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 8px; }
+    .bottombar > .group { min-width: 0; }
     .bottombar > .group:first-child { padding: 8px 4px; }
-    .bottombar > .group:last-child { justify-content: flex-end; }
-    .bottombar .info { margin-right: auto; }
+    .hide-sm { display: none; }
+    /* info on its own line, then the save buttons share the full width */
+    .bottombar > .group:last-child { flex-wrap: wrap; gap: 8px 10px; }
+    .bottombar .info { flex: 1 1 100%; }
+    .bottombar > .group:last-child > button { flex: 1 1 0; justify-content: center; min-width: 0; }
+    .bottombar { padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+    /* fade the right edge of swipeable rows so it's clear there is more */
+    .toolbar, .bottombar > .group:first-child {
+      -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 36px), transparent);
+      mask-image: linear-gradient(90deg, #000 calc(100% - 36px), transparent);
+      padding-right: 36px;
+    }
+    .bottombar > .group:first-child { gap: 12px; padding: 9px 36px 9px 2px; }
   }
   @media (prefers-reduced-motion: reduce) { button, #toast { transition: none; } button:hover:not(:disabled) { transform: none; } }
 </style>
@@ -323,8 +336,8 @@
       </div>
       <div class="group">
         <span class="info" id="info"></span>
-        <button id="shareBtn" style="display:none">Share / Save to Photos</button>
-        <button id="downloadBtn" class="primary">Download PNG</button>
+        <button id="shareBtn" style="display:none"><span class="hide-sm">Share / </span>Save to Photos</button>
+        <button id="downloadBtn" class="primary">Download<span class="hide-sm"> PNG</span></button>
       </div>
     </div>
   </section>
