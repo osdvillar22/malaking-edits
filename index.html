@@ -83,14 +83,21 @@
     background-size: 20px 20px; background-position: 0 0, 0 10px, 10px -10px, -10px 0;
   }
   .swatch.checker { background-size: 10px 10px; background-position: 0 0, 0 5px, 5px -5px, -5px 0; }
-  #canvas { display: block; position: relative; touch-action: none; }
-  #bgView, #wrap > .orig { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-  #bgView { display: none; }
-  #wrap > .orig { visibility: hidden; z-index: 2; }
+  #wrap { touch-action: none; }
+  #canvas { display: block; position: absolute; }
+  #bgView { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; display: none; }
+  #wrap > .orig { position: absolute; pointer-events: none; visibility: hidden; z-index: 2; }
   #wrap.comparing > .orig { visibility: visible; }
-  #stage.tool-move #canvas { cursor: grab; }
-  #stage.tool-magic #canvas { cursor: crosshair; }
-  #stage.tool-erase #canvas, #stage.tool-restore #canvas { cursor: none; }
+  #stage.tool-move #wrap { cursor: grab; }
+  #stage.tool-magic #wrap { cursor: crosshair; }
+  #stage.tool-erase #wrap, #stage.tool-restore #wrap { cursor: none; }
+  #expandBtn.active { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  #expandPanel { display: none; }
+  #expandPanel.open { display: flex; }
+  .anchor { display: grid; grid-template-columns: repeat(3, 18px); gap: 3px; }
+  .anchor button { width: 18px; height: 18px; min-height: 0; padding: 0; border-radius: 4px; }
+  .anchor button.active { background: var(--accent); border-color: var(--accent); }
+  .hint { color: var(--muted); font-size: 12px; flex-basis: 100%; }
   #cursor {
     position: fixed; pointer-events: none; border-radius: 50%; display: none; z-index: 5;
     border: 1.5px solid #fff; box-shadow: 0 0 0 1px #000, inset 0 0 0 1px #000;
@@ -165,7 +172,36 @@
         <button id="undo" disabled title="Undo (Ctrl+Z)">Undo</button>
         <button id="redo" disabled title="Redo (Ctrl+Y)">Redo</button>
         <button id="compareBtn" title="Press and hold to see the original photo (hold C)">Hold to compare</button>
+        <button id="expandBtn" title="Add space around the photo">Expand</button>
       </div>
+    </div>
+
+    <div class="toolbar" id="expandPanel">
+      <div class="group">
+        <span class="bglabel">Shape</span>
+        <button class="pill active" data-ratio="orig">Original</button>
+        <button class="pill" data-ratio="1:1">1:1</button>
+        <button class="pill" data-ratio="4:5">4:5</button>
+        <button class="pill" data-ratio="9:16">9:16</button>
+        <button class="pill" data-ratio="16:9">16:9</button>
+        <button class="pill" data-ratio="4:3">4:3</button>
+        <button class="pill" data-ratio="3:2">3:2</button>
+      </div>
+      <div class="sep"></div>
+      <label>Extra space <input id="pad" type="range" min="0" max="60" value="0"></label>
+      <div class="sep"></div>
+      <div class="group">
+        <span class="bglabel">Position</span>
+        <div class="anchor" id="anchor"></div>
+      </div>
+      <div class="sep"></div>
+      <div class="group">
+        <span class="bglabel">Extend photo by</span>
+        <button class="pill active" data-ext="mirror">Mirror</button>
+        <button class="pill" data-ext="stretch">Stretch</button>
+      </div>
+      <button class="pill" id="expandReset">Reset</button>
+      <span class="hint">The new space is filled with the Background chosen below. Pick <b>Original</b> to extend the photo's own background.</span>
     </div>
 
     <div id="stage" class="tool-erase">
@@ -184,6 +220,7 @@
         <button class="swatch" id="bgColorSwatch" data-bg="custom" title="Pick any color" aria-label="Pick a color">
           <input type="color" id="bgColor" value="#3b82f6">
         </button>
+        <button class="pill" data-bg="original" title="Keep the photo's own background (extended when you use Expand)">Original</button>
         <button class="pill" data-bg="blur" title="Blurred version of the original background">Blur</button>
         <button class="pill" data-bg="photo" title="Use another photo as the background">Photo…</button>
         <input type="file" id="bgFile" accept="image/*" hidden>
@@ -220,6 +257,8 @@ let tool = "erase";
 let zoom = 1;             // 1 = fit to screen
 let bg = { type: "transparent" };
 let bgPhoto = null;
+let doc = { w: 0, h: 0, ox: 0, oy: 0 };   // output size and where the photo sits inside it
+const expand = { ratio: "orig", pad: 0, ax: 0.5, ay: 0.5, ext: "mirror" };
 const undoStack = [], redoStack = [];
 const MAX_HISTORY = 15;
 
@@ -286,15 +325,13 @@ async function handleFile(file) {
     original?.remove();
     original = orig;
     wrap.appendChild(original);
-    canvas.width = bgView.width = w; canvas.height = bgView.height = h;
+    canvas.width = w; canvas.height = h;
     ctx.clearRect(0, 0, w, h);
     ctx.drawImage(resImg, 0, 0, w, h);
-    renderBackground();
 
     undoStack.length = redoStack.length = 0; updateHistoryButtons();
     drop.style.display = "none"; editor.style.display = "flex"; $("newBtn").style.display = "";
-    $("info").textContent = `${w} × ${h} px`;
-    zoom = 1; applyZoom();
+    resetExpand();
   } catch (err) {
     console.error(err);
     alert("Something went wrong: " + (err?.message || err));
@@ -307,17 +344,23 @@ async function handleFile(file) {
 function fitScale() {
   const pad = 32;
   const sw = stage.clientWidth - pad, sh = stage.clientHeight - pad;
-  return Math.min(sw / canvas.width, sh / canvas.height, 1);
+  return Math.min(sw / doc.w, sh / doc.h, 1);
 }
 function applyZoom(anchor) {
-  const prev = canvas.getBoundingClientRect();
+  const prev = wrap.getBoundingClientRect();
   const s = fitScale() * zoom;
-  canvas.style.width = canvas.width * s + "px";
-  canvas.style.height = canvas.height * s + "px";
+  wrap.style.width = doc.w * s + "px";
+  wrap.style.height = doc.h * s + "px";
+  for (const el of [canvas, original]) {
+    Object.assign(el.style, {
+      left: doc.ox * s + "px", top: doc.oy * s + "px",
+      width: canvas.width * s + "px", height: canvas.height * s + "px",
+    });
+  }
   // keep the point under the anchor roughly in place
   if (anchor && prev.width) {
     const rx = (anchor.x - prev.left) / prev.width, ry = (anchor.y - prev.top) / prev.height;
-    const now = canvas.getBoundingClientRect();
+    const now = wrap.getBoundingClientRect();
     stage.scrollLeft += (now.left + rx * now.width) - anchor.x;
     stage.scrollTop += (now.top + ry * now.height) - anchor.y;
   }
@@ -362,11 +405,12 @@ function drawCover(target, img) {
   const s = Math.max(w / iw, h / ih);
   c.drawImage(img, (w - iw * s) / 2, (h - ih * s) / 2, iw * s, ih * s);
 }
-function drawBlur() {
+function makeCanvas(w, h) { const c = document.createElement("canvas"); c.width = w; c.height = h; return c; }
+function blurred(src, amount) {
   // Blur by shrinking then enlarging in steps (works in every browser, including iPhone Safari)
-  const w = original.width, h = original.height;
-  let cur = original, cw = w, ch = h;
-  const target = Math.max(8, Math.round(Math.max(w, h) / 48));
+  const w = src.width, h = src.height;
+  let cur = src, cw = w, ch = h;
+  const target = Math.max(8, Math.round(Math.max(w, h) / amount));
   while (Math.max(cw, ch) / 2 >= target) {
     cw = Math.max(1, Math.round(cw / 2)); ch = Math.max(1, Math.round(ch / 2));
     const c = document.createElement("canvas"); c.width = cw; c.height = ch;
@@ -379,19 +423,148 @@ function drawBlur() {
     const x = c.getContext("2d"); x.imageSmoothingQuality = "high"; x.drawImage(cur, 0, 0, cw, ch);
     cur = c;
   }
-  bgCtx.imageSmoothingQuality = "high";
-  bgCtx.drawImage(cur, 0, 0, w, h);
+  const out = makeCanvas(w, h), x = out.getContext("2d");
+  x.imageSmoothingQuality = "high";
+  x.drawImage(cur, 0, 0, w, h);
+  return out;
+}
+// The photo with the subject removed and the hole filled with surrounding colors
+// (shrink step by step, then fill each level's holes from the smaller one)
+function backgroundPlate() {
+  const levels = [makeCanvas(original.width, original.height)];
+  const x0 = levels[0].getContext("2d");
+  x0.drawImage(original, 0, 0);
+  x0.globalCompositeOperation = "destination-out";
+  // remove a slightly larger area than the subject so its soft edges don't bleed into the fill
+  const d = Math.max(2, Math.round(Math.max(original.width, original.height) * 0.012));
+  for (const [dx, dy] of [[0, 0], [d, 0], [-d, 0], [0, d], [0, -d], [d, d], [-d, -d], [d, -d], [-d, d]])
+    x0.drawImage(canvas, dx, dy);
+  while (Math.max(levels.at(-1).width, levels.at(-1).height) > 4) {
+    const p = levels.at(-1), c = makeCanvas(Math.ceil(p.width / 2), Math.ceil(p.height / 2));
+    const x = c.getContext("2d"); x.imageSmoothingQuality = "high";
+    x.drawImage(p, 0, 0, c.width, c.height);
+    levels.push(c);
+  }
+  for (let i = levels.length - 2; i >= 0; i--) {
+    const x = levels[i].getContext("2d");
+    x.globalCompositeOperation = "destination-over"; x.imageSmoothingQuality = "high";
+    x.drawImage(levels[i + 1], 0, 0, levels[i].width, levels[i].height);
+  }
+  return levels[0];
+}
+// The original photo, extended into the new space by mirroring or stretching its background
+function drawExtendedOriginal() {
+  const w = original.width, h = original.height, { ox, oy } = doc;
+  const L = ox, T = oy, R = doc.w - ox - w, B = doc.h - oy - h;
+  if (L || T || R || B) {
+    const o = backgroundPlate();
+    const ext = makeCanvas(doc.w, doc.h), x = ext.getContext("2d");
+    if (expand.ext === "mirror") {
+      for (let i = -Math.ceil(L / w); i <= Math.ceil(R / w); i++) {
+        for (let j = -Math.ceil(T / h); j <= Math.ceil(B / h); j++) {
+          x.save();
+          x.translate(ox + i * w + (i % 2 ? w : 0), oy + j * h + (j % 2 ? h : 0));
+          x.scale(i % 2 ? -1 : 1, j % 2 ? -1 : 1);
+          x.drawImage(o, 0, 0);
+          x.restore();
+        }
+      }
+    } else {
+      const strips = [
+        [0, 0, 1, h, 0, oy, L, h], [w - 1, 0, 1, h, ox + w, oy, R, h],
+        [0, 0, w, 1, ox, 0, w, T], [0, h - 1, w, 1, ox, oy + h, w, B],
+        [0, 0, 1, 1, 0, 0, L, T], [w - 1, 0, 1, 1, ox + w, 0, R, T],
+        [0, h - 1, 1, 1, 0, oy + h, L, B], [w - 1, h - 1, 1, 1, ox + w, oy + h, R, B],
+      ];
+      for (const [sx, sy, sw, sh, dx, dy, dw, dh] of strips) if (dw > 0 && dh > 0) x.drawImage(o, sx, sy, sw, sh, dx, dy, dw, dh);
+      x.drawImage(o, ox, oy);
+    }
+    bgCtx.drawImage(blurred(ext, 20), 0, 0);
+  }
+  // Crisp photo on top, with its edges faded into the extension so there is no hard seam
+  const crisp = makeCanvas(w, h), c = crisp.getContext("2d");
+  c.drawImage(original, 0, 0);
+  const f = Math.max(2, Math.round(Math.min(w, h) * 0.05));
+  c.globalCompositeOperation = "destination-out";
+  const fade = (x0, y0, x1, y1, rx, ry, rw, rh) => {
+    const g = c.createLinearGradient(x0, y0, x1, y1);
+    g.addColorStop(0, "rgba(0,0,0,1)"); g.addColorStop(1, "rgba(0,0,0,0)");
+    c.fillStyle = g; c.fillRect(rx, ry, rw, rh);
+  };
+  if (L) fade(0, 0, f, 0, 0, 0, f, h);
+  if (R) fade(w, 0, w - f, 0, w - f, 0, f, h);
+  if (T) fade(0, 0, 0, f, 0, 0, w, f);
+  if (B) fade(0, h, 0, h - f, 0, h - f, w, f);
+  bgCtx.drawImage(crisp, ox, oy);
 }
 function renderBackground() {
   wrap.classList.toggle("checker", bg.type === "transparent");
   wrap.style.background = bg.type === "color" ? bg.color : "";
-  const usesCanvas = bg.type === "blur" || bg.type === "photo";
+  const usesCanvas = bg.type === "blur" || bg.type === "photo" || bg.type === "original";
   bgView.style.display = usesCanvas ? "block" : "none";
   if (!original || !usesCanvas) return;
-  bgCtx.clearRect(0, 0, bgView.width, bgView.height);
-  if (bg.type === "blur") drawBlur();
-  else drawCover(bgView, bgPhoto);
+  if (bgView.width !== doc.w || bgView.height !== doc.h) { bgView.width = doc.w; bgView.height = doc.h; }
+  bgCtx.clearRect(0, 0, doc.w, doc.h);
+  if (bg.type === "blur") {
+    const c = makeCanvas(doc.w, doc.h); drawCover(c, backgroundPlate());
+    bgCtx.drawImage(blurred(c, 48), 0, 0);
+  } else if (bg.type === "photo") drawCover(bgView, bgPhoto);
+  else drawExtendedOriginal();
 }
+
+// ---------- Expand ----------
+function layout() {
+  const w = canvas.width, h = canvas.height;
+  let W = w, H = h;
+  if (expand.ratio !== "orig") {
+    const [a, b] = expand.ratio.split(":").map(Number), r = a / b;
+    if (w / h < r) W = Math.round(h * r); else H = Math.round(w / r);
+  }
+  W = Math.round(W * (1 + expand.pad / 100)); H = Math.round(H * (1 + expand.pad / 100));
+  doc = { w: W, h: H, ox: Math.round((W - w) * expand.ax), oy: Math.round((H - h) * expand.ay) };
+  const grown = W !== w || H !== h;
+  $("info").textContent = `${W} × ${H} px` + (grown ? ` (photo ${w} × ${h})` : "");
+  renderBackground();
+  applyZoom();
+}
+function resetExpand() {
+  Object.assign(expand, { ratio: "orig", pad: 0, ax: 0.5, ay: 0.5 });
+  $("pad").value = 0;
+  document.querySelectorAll("[data-ratio]").forEach((b) => b.classList.toggle("active", b.dataset.ratio === "orig"));
+  document.querySelectorAll("#anchor button").forEach((b) => b.classList.toggle("active", b.dataset.ax === "0.5" && b.dataset.ay === "0.5"));
+  zoom = 1; layout();
+}
+for (const ay of [0, 0.5, 1]) for (const ax of [0, 0.5, 1]) {
+  const b = document.createElement("button");
+  b.dataset.ax = ax; b.dataset.ay = ay; b.setAttribute("aria-label", `Position ${ax},${ay}`);
+  b.onclick = () => {
+    expand.ax = ax; expand.ay = ay;
+    document.querySelectorAll("#anchor button").forEach((x) => x.classList.toggle("active", x === b));
+    layout();
+  };
+  $("anchor").appendChild(b);
+}
+document.querySelectorAll("[data-ratio]").forEach((b) => b.addEventListener("click", () => {
+  expand.ratio = b.dataset.ratio;
+  document.querySelectorAll("[data-ratio]").forEach((x) => x.classList.toggle("active", x === b));
+  zoom = 1; layout();
+}));
+document.querySelectorAll("[data-ext]").forEach((b) => b.addEventListener("click", () => {
+  expand.ext = b.dataset.ext;
+  document.querySelectorAll("[data-ext]").forEach((x) => x.classList.toggle("active", x === b));
+  renderBackground();
+}));
+let padTimer;
+$("pad").addEventListener("input", () => {
+  expand.pad = +$("pad").value;
+  clearTimeout(padTimer); padTimer = setTimeout(layout, 60);
+});
+$("expandReset").onclick = resetExpand;
+$("expandBtn").onclick = () => {
+  const open = $("expandPanel").classList.toggle("open");
+  $("expandBtn").classList.toggle("active", open);
+  applyZoom();
+};
 function selectBgButton(btn) {
   document.querySelectorAll(".bottombar [data-bg]").forEach((b) => b.classList.toggle("active", b === btn));
 }
@@ -430,8 +603,16 @@ function pushUndo() {
   if (undoStack.length > MAX_HISTORY) undoStack.shift();
   redoStack.length = 0; updateHistoryButtons();
 }
-function undo() { if (!undoStack.length) return; redoStack.push(snapshot()); restoreFrom(undoStack.pop()); updateHistoryButtons(); }
-function redo() { if (!redoStack.length) return; undoStack.push(snapshot()); restoreFrom(redoStack.pop()); updateHistoryButtons(); }
+function undo() { if (!undoStack.length) return; redoStack.push(snapshot()); restoreFrom(undoStack.pop()); updateHistoryButtons(); afterEdit(); }
+function redo() { if (!redoStack.length) return; undoStack.push(snapshot()); restoreFrom(redoStack.pop()); updateHistoryButtons(); afterEdit(); }
+// Backgrounds built from the photo's background need refreshing after the cutout changes
+let editTimer;
+function afterEdit() {
+  const grown = doc.w !== canvas.width || doc.h !== canvas.height;
+  if (bg.type === "blur" || (bg.type === "original" && grown)) {
+    clearTimeout(editTimer); editTimer = setTimeout(renderBackground, 150);
+  }
+}
 function updateHistoryButtons() { $("undo").disabled = !undoStack.length; $("redo").disabled = !redoStack.length; }
 $("undo").onclick = undo; $("redo").onclick = redo;
 document.addEventListener("keydown", (e) => {
@@ -512,6 +693,7 @@ function magicErase(px, py) {
   }
   pushUndo();
   ctx.putImageData(img, 0, 0);
+  afterEdit();
   toast(count < 50 ? "Only a few pixels matched. Try a higher tolerance" : "Erased");
 }
 
@@ -548,8 +730,8 @@ function moveCursor(e) {
   });
 }
 
-canvas.addEventListener("pointerdown", (e) => {
-  canvas.setPointerCapture(e.pointerId);
+wrap.addEventListener("pointerdown", (e) => {
+  wrap.setPointerCapture(e.pointerId);
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
   // two fingers = pinch zoom / pan, cancel any stroke in progress
@@ -569,7 +751,7 @@ canvas.addEventListener("pointerdown", (e) => {
   painting = true; last = null;
   strokeTo(toImage(e));
 });
-canvas.addEventListener("pointermove", (e) => {
+wrap.addEventListener("pointermove", (e) => {
   moveCursor(e);
   if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (pinch && pointers.size >= 2) {
@@ -594,24 +776,28 @@ canvas.addEventListener("pointermove", (e) => {
 function endPointer(e) {
   pointers.delete(e.pointerId);
   if (pointers.size < 2) pinch = null;
+  if (painting) afterEdit();
   painting = false; last = null; panStart = null;
 }
-canvas.addEventListener("pointerup", endPointer);
-canvas.addEventListener("pointercancel", endPointer);
-canvas.addEventListener("pointerleave", () => { cursorEl.style.display = "none"; });
+wrap.addEventListener("pointerup", endPointer);
+wrap.addEventListener("pointercancel", endPointer);
+wrap.addEventListener("pointerleave", () => { cursorEl.style.display = "none"; });
 
 // ---------- Export ----------
 function outputCanvas() {
-  if (bg.type === "transparent") return canvas;
-  const c = document.createElement("canvas");
-  c.width = canvas.width; c.height = canvas.height;
-  const x = c.getContext("2d");
+  const grown = doc.w !== canvas.width || doc.h !== canvas.height;
+  if (bg.type === "transparent" && !grown) return canvas;
+  const c = makeCanvas(doc.w, doc.h), x = c.getContext("2d");
   if (bg.type === "color") { x.fillStyle = bg.color; x.fillRect(0, 0, c.width, c.height); }
-  else x.drawImage(bgView, 0, 0);
-  x.drawImage(canvas, 0, 0);
+  else if (bg.type !== "transparent") x.drawImage(bgView, 0, 0);
+  x.drawImage(canvas, doc.ox, doc.oy);
   return c;
 }
-const outName = () => `${fileBase}-${bg.type === "transparent" ? "no-bg" : "new-bg"}.png`;
+const outName = () => {
+  const grown = doc.w !== canvas.width || doc.h !== canvas.height;
+  const tag = bg.type === "transparent" ? "no-bg" : bg.type === "original" ? "edited" : "new-bg";
+  return `${fileBase}-${tag}${grown ? "-expanded" : ""}.png`;
+};
 function getBlob() { return new Promise((r) => outputCanvas().toBlob(r, "image/png")); }
 $("downloadBtn").onclick = async () => {
   const blob = await getBlob();
