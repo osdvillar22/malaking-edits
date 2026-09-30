@@ -7,12 +7,12 @@
 <style>
   :root {
     --bg: #f4f4f5; --panel: #ffffff; --text: #18181b; --muted: #71717a;
-    --border: #e4e4e7; --accent: #2563eb; --accent-text: #ffffff; --danger: #dc2626;
+    --border: #e4e4e7; --accent: #2563eb; --accent-text: #ffffff;
   }
   @media (prefers-color-scheme: dark) {
     :root {
       --bg: #09090b; --panel: #18181b; --text: #f4f4f5; --muted: #a1a1aa;
-      --border: #27272a; --accent: #3b82f6; --accent-text: #ffffff; --danger: #ef4444;
+      --border: #27272a; --accent: #3b82f6; --accent-text: #ffffff;
     }
   }
   * { box-sizing: border-box; }
@@ -31,6 +31,7 @@
     font: inherit; border: 1px solid var(--border); background: var(--panel); color: var(--text);
     padding: 8px 12px; border-radius: 8px; cursor: pointer; white-space: nowrap;
     display: inline-flex; align-items: center; gap: 6px; min-height: 38px;
+    user-select: none; -webkit-user-select: none;
   }
   button:hover:not(:disabled), .btn:hover { border-color: var(--muted); }
   button:disabled { opacity: .45; cursor: default; }
@@ -68,48 +69,58 @@
     display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
     padding: 8px 16px; background: var(--panel); border-bottom: 1px solid var(--border);
   }
-  .toolbar .group { display: flex; gap: 6px; align-items: center; }
-  .toolbar .sep { width: 1px; height: 26px; background: var(--border); }
-  .toolbar label { color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 6px; }
-  .toolbar input[type=range] { width: 110px; }
-  #stage {
-    flex: 1; overflow: auto; min-height: 0; position: relative;
-    display: grid; place-items: center; padding: 16px;
-  }
-  #stage.checker {
+  .group { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .sep { width: 1px; height: 26px; background: var(--border); }
+  .toolbar label, .bglabel { color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 6px; }
+  .toolbar input[type=range] { width: 100px; }
+  #stage { flex: 1; overflow: auto; min-height: 0; display: flex; padding: 16px; }
+  #wrap { margin: auto; position: relative; flex: none; box-shadow: 0 0 0 1px rgba(128,128,128,.35); }
+  #wrap.checker, .swatch.checker {
     background-color: #fff;
     background-image:
       linear-gradient(45deg, #d4d4d8 25%, transparent 25%), linear-gradient(-45deg, #d4d4d8 25%, transparent 25%),
       linear-gradient(45deg, transparent 75%, #d4d4d8 75%), linear-gradient(-45deg, transparent 75%, #d4d4d8 75%);
     background-size: 20px 20px; background-position: 0 0, 0 10px, 10px -10px, -10px 0;
   }
-  #stage.white { background: #fff; }
-  #stage.black { background: #000; }
-  #stage.green { background: #16a34a; }
-  #canvas { display: block; touch-action: none; box-shadow: 0 0 0 1px rgba(0,0,0,.15); }
+  .swatch.checker { background-size: 10px 10px; background-position: 0 0, 0 5px, 5px -5px, -5px 0; }
+  #canvas { display: block; position: relative; touch-action: none; }
+  #bgView, #wrap > .orig { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  #bgView { display: none; }
+  #wrap > .orig { visibility: hidden; z-index: 2; }
+  #wrap.comparing > .orig { visibility: visible; }
   #stage.tool-move #canvas { cursor: grab; }
+  #stage.tool-magic #canvas { cursor: crosshair; }
   #stage.tool-erase #canvas, #stage.tool-restore #canvas { cursor: none; }
   #cursor {
     position: fixed; pointer-events: none; border-radius: 50%; display: none; z-index: 5;
     border: 1.5px solid #fff; box-shadow: 0 0 0 1px #000, inset 0 0 0 1px #000;
   }
+  #compareBtn.active { background: #f59e0b; border-color: #f59e0b; color: #000; }
   .bottombar {
-    display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center;
+    display: flex; flex-wrap: wrap; gap: 8px 16px; justify-content: space-between; align-items: center;
     padding: 10px 16px; background: var(--panel); border-top: 1px solid var(--border);
   }
-  .bottombar .info { color: var(--muted); font-size: 13px; }
-  .swatch { width: 22px; height: 22px; padding: 0; min-height: 0; border-radius: 50%; }
+  .bottombar .info { color: var(--muted); font-size: 12px; }
+  .swatch {
+    width: 30px; height: 30px; padding: 0; min-height: 0; border-radius: 50%;
+    overflow: hidden; position: relative;
+  }
   .swatch.active { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .swatch.checker {
-    background-image: conic-gradient(#d4d4d8 25%, #fff 0 50%, #d4d4d8 0 75%, #fff 0);
-    background-size: 10px 10px;
+  .swatch input[type=color] { position: absolute; inset: -8px; width: 50px; height: 50px; border: 0; padding: 0; cursor: pointer; opacity: 0; }
+  #bgColorSwatch { background: conic-gradient(red, yellow, lime, cyan, blue, magenta, red); }
+  .pill { min-height: 30px; padding: 4px 10px; font-size: 13px; }
+  .pill.active { outline: 2px solid var(--accent); outline-offset: 2px; }
+  #toast {
+    position: fixed; left: 50%; bottom: 80px; transform: translateX(-50%); background: #18181b; color: #fff;
+    padding: 8px 14px; border-radius: 8px; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 20;
   }
   @media (max-width: 640px) {
     .toolbar { padding: 8px; gap: 6px; }
-    .toolbar .sep { display: none; }
-    .toolbar input[type=range] { width: 90px; }
+    .sep { display: none; }
+    .toolbar input[type=range] { width: 80px; }
     button { padding: 7px 10px; }
     .hide-sm { display: none; }
+    .bottombar { padding: 8px; }
   }
 </style>
 </head>
@@ -124,18 +135,25 @@
     <input id="file" type="file" accept="image/*" hidden>
     <div class="big">Tap or drop a photo here</div>
     <p>The background is removed right on your device. Your photo is never uploaded or stored anywhere.</p>
-    <p><small>The first run downloads the AI model (about 40–80 MB). After that, it loads from your browser's cache.</small></p>
+    <p><small>The first run downloads the AI model (about 90 MB). After that, it loads from your browser's cache.</small></p>
   </label>
 
   <section id="editor">
     <div class="toolbar">
       <div class="group">
-        <button id="toolErase" class="active" title="Erase leftover background">Erase</button>
-        <button id="toolRestore" title="Paint back parts of the original photo">Restore</button>
-        <button id="toolMove" title="Drag to move around when zoomed in">Move</button>
+        <button id="toolErase" class="active" title="Erase leftover background (E)">Erase</button>
+        <button id="toolMagic" title="Tap a leftover patch to erase similar connected colors (M)">Magic</button>
+        <button id="toolRestore" title="Paint back parts of the original photo (R)">Restore</button>
+        <button id="toolMove" title="Drag to move around when zoomed in (hold Space)">Move</button>
       </div>
       <div class="sep"></div>
-      <label>Brush <input id="size" type="range" min="4" max="150" value="30"></label>
+      <div class="group" id="brushOpts">
+        <label>Size <input id="size" type="range" min="4" max="150" value="30"></label>
+        <label>Softness <input id="soft" type="range" min="0" max="100" value="40"></label>
+      </div>
+      <div class="group" id="magicOpts" style="display:none">
+        <label>Tolerance <input id="tol" type="range" min="1" max="80" value="20"></label>
+      </div>
       <div class="sep"></div>
       <div class="group">
         <button id="zoomOut" title="Zoom out">−</button>
@@ -146,24 +164,32 @@
       <div class="group">
         <button id="undo" disabled title="Undo (Ctrl+Z)">Undo</button>
         <button id="redo" disabled title="Redo (Ctrl+Y)">Redo</button>
-      </div>
-      <div class="sep"></div>
-      <div class="group" title="Preview background, to spot leftover bits. It is not saved in the download.">
-        <span class="hide-sm" style="color:var(--muted);font-size:13px">Preview</span>
-        <button class="swatch checker active" data-bg="checker" aria-label="Checkerboard"></button>
-        <button class="swatch" data-bg="white" style="background:#fff" aria-label="White"></button>
-        <button class="swatch" data-bg="black" style="background:#000" aria-label="Black"></button>
-        <button class="swatch" data-bg="green" style="background:#16a34a" aria-label="Green"></button>
+        <button id="compareBtn" title="Press and hold to see the original photo (hold C)">Hold to compare</button>
       </div>
     </div>
 
-    <div id="stage" class="checker tool-erase">
-      <canvas id="canvas"></canvas>
+    <div id="stage" class="tool-erase">
+      <div id="wrap" class="checker">
+        <canvas id="bgView"></canvas>
+        <canvas id="canvas"></canvas>
+      </div>
     </div>
 
     <div class="bottombar">
-      <span class="info" id="info"></span>
-      <div class="group" style="display:flex;gap:8px">
+      <div class="group">
+        <span class="bglabel">Background</span>
+        <button class="swatch checker active" data-bg="transparent" title="Transparent" aria-label="Transparent"></button>
+        <button class="swatch" data-bg="color" data-color="#ffffff" style="background:#fff" title="White" aria-label="White"></button>
+        <button class="swatch" data-bg="color" data-color="#000000" style="background:#000" title="Black" aria-label="Black"></button>
+        <button class="swatch" id="bgColorSwatch" data-bg="custom" title="Pick any color" aria-label="Pick a color">
+          <input type="color" id="bgColor" value="#3b82f6">
+        </button>
+        <button class="pill" data-bg="blur" title="Blurred version of the original background">Blur</button>
+        <button class="pill" data-bg="photo" title="Use another photo as the background">Photo…</button>
+        <input type="file" id="bgFile" accept="image/*" hidden>
+      </div>
+      <div class="group">
+        <span class="info" id="info"></span>
         <button id="shareBtn" style="display:none">Share / Save to Photos</button>
         <button id="downloadBtn" class="primary">Download PNG</button>
       </div>
@@ -172,6 +198,7 @@
 </main>
 
 <div id="cursor"></div>
+<div id="toast"></div>
 <div id="busy"><div class="card">
   <div id="busyText">Removing background…</div>
   <div class="bar"><div id="busyBar"></div></div>
@@ -182,16 +209,24 @@
 import { removeBackground } from "https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/+esm";
 
 const $ = (id) => document.getElementById(id);
-const drop = $("drop"), fileInput = $("file"), editor = $("editor"), stage = $("stage");
+const drop = $("drop"), fileInput = $("file"), editor = $("editor"), stage = $("stage"), wrap = $("wrap");
 const canvas = $("canvas"), ctx = canvas.getContext("2d", { willReadFrequently: true });
+const bgView = $("bgView"), bgCtx = bgView.getContext("2d");
 const cursorEl = $("cursor");
 
-let original = null;      // canvas holding the original photo at full size
+let original = null;      // canvas holding the original photo at full size (also used as the compare overlay)
 let fileBase = "image";
 let tool = "erase";
 let zoom = 1;             // 1 = fit to screen
+let bg = { type: "transparent" };
+let bgPhoto = null;
 const undoStack = [], redoStack = [];
 const MAX_HISTORY = 15;
+
+function toast(msg) {
+  const t = $("toast"); t.textContent = msg; t.style.opacity = 1;
+  clearTimeout(toast.t); toast.t = setTimeout(() => (t.style.opacity = 0), 1800);
+}
 
 // ---------- Upload ----------
 fileInput.addEventListener("change", () => fileInput.files[0] && handleFile(fileInput.files[0]));
@@ -200,11 +235,15 @@ fileInput.addEventListener("change", () => fileInput.files[0] && handleFile(file
 drop.addEventListener("drop", (e) => { const f = e.dataTransfer.files[0]; if (f) handleFile(f); });
 $("newBtn").addEventListener("click", () => {
   editor.style.display = "none"; drop.style.display = "flex"; $("newBtn").style.display = "none";
-  fileInput.value = ""; original = null; undoStack.length = redoStack.length = 0;
+  fileInput.value = ""; original?.remove(); original = null; undoStack.length = redoStack.length = 0;
 });
 
 function loadImage(src) {
   return new Promise((res, rej) => { const img = new Image(); img.onload = () => res(img); img.onerror = rej; img.src = src; });
+}
+async function loadFile(file) {
+  const url = URL.createObjectURL(file);
+  try { return await loadImage(url); } finally { URL.revokeObjectURL(url); }
 }
 
 function showBusy(on, text = "Removing background…") {
@@ -218,16 +257,14 @@ async function handleFile(file) {
   showBusy(true);
   try {
     // Load the original with the phone's rotation already applied
-    const url = URL.createObjectURL(file);
-    const img = await loadImage(url);
-    URL.revokeObjectURL(url);
+    const img = await loadFile(file);
     const w = img.naturalWidth, h = img.naturalHeight;
-    original = document.createElement("canvas");
-    original.width = w; original.height = h;
-    original.getContext("2d").drawImage(img, 0, 0);
+    const orig = document.createElement("canvas");
+    orig.width = w; orig.height = h; orig.className = "orig";
+    orig.getContext("2d").drawImage(img, 0, 0);
 
     // Send the already-oriented pixels so the mask lines up exactly
-    const srcBlob = await new Promise((r) => original.toBlob(r, "image/png"));
+    const srcBlob = await new Promise((r) => orig.toBlob(r, "image/png"));
     const resultBlob = await removeBackground(srcBlob, {
       model: "isnet_fp16",
       output: { format: "image/png", quality: 1 },
@@ -243,18 +280,20 @@ async function handleFile(file) {
         }
       },
     });
-    const resUrl = URL.createObjectURL(resultBlob);
-    const resImg = await loadImage(resUrl);
-    URL.revokeObjectURL(resUrl);
+    const resImg = await loadFile(resultBlob);
 
     // Output stays exactly the same pixel size as the original
-    canvas.width = w; canvas.height = h;
+    original?.remove();
+    original = orig;
+    wrap.appendChild(original);
+    canvas.width = bgView.width = w; canvas.height = bgView.height = h;
     ctx.clearRect(0, 0, w, h);
     ctx.drawImage(resImg, 0, 0, w, h);
+    renderBackground();
 
     undoStack.length = redoStack.length = 0; updateHistoryButtons();
     drop.style.display = "none"; editor.style.display = "flex"; $("newBtn").style.display = "";
-    $("info").textContent = `${w} × ${h} px, same as the original`;
+    $("info").textContent = `${w} × ${h} px`;
     zoom = 1; applyZoom();
   } catch (err) {
     console.error(err);
@@ -297,21 +336,86 @@ stage.addEventListener("wheel", (e) => {
 // ---------- Tools ----------
 function setTool(t) {
   tool = t;
-  for (const [id, name] of [["toolErase", "erase"], ["toolRestore", "restore"], ["toolMove", "move"]])
+  for (const [id, name] of [["toolErase", "erase"], ["toolMagic", "magic"], ["toolRestore", "restore"], ["toolMove", "move"]])
     $(id).classList.toggle("active", name === t);
-  stage.className = stage.className.replace(/tool-\w+/, "tool-" + t);
-  if (t === "move") cursorEl.style.display = "none";
+  stage.className = "tool-" + t;
+  $("brushOpts").style.display = t === "erase" || t === "restore" ? "" : "none";
+  $("magicOpts").style.display = t === "magic" ? "" : "none";
+  if (t !== "erase" && t !== "restore") cursorEl.style.display = "none";
 }
 $("toolErase").onclick = () => setTool("erase");
+$("toolMagic").onclick = () => setTool("magic");
 $("toolRestore").onclick = () => setTool("restore");
 $("toolMove").onclick = () => setTool("move");
 
-document.querySelectorAll(".swatch").forEach((b) => b.addEventListener("click", () => {
-  document.querySelectorAll(".swatch").forEach((x) => x.classList.remove("active"));
-  b.classList.add("active");
-  stage.classList.remove("checker", "white", "black", "green");
-  stage.classList.add(b.dataset.bg);
+// ---------- Compare (hold to see original) ----------
+const cmp = $("compareBtn");
+const setCompare = (on) => { wrap.classList.toggle("comparing", on); cmp.classList.toggle("active", on); };
+cmp.addEventListener("pointerdown", (e) => { e.preventDefault(); cmp.setPointerCapture(e.pointerId); setCompare(true); });
+["pointerup", "pointercancel", "lostpointercapture"].forEach((ev) => cmp.addEventListener(ev, () => setCompare(false)));
+cmp.addEventListener("contextmenu", (e) => e.preventDefault());
+
+// ---------- Background ----------
+function drawCover(target, img) {
+  const w = target.width, h = target.height, c = target.getContext("2d");
+  const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
+  const s = Math.max(w / iw, h / ih);
+  c.drawImage(img, (w - iw * s) / 2, (h - ih * s) / 2, iw * s, ih * s);
+}
+function drawBlur() {
+  // Blur by shrinking then enlarging in steps (works in every browser, including iPhone Safari)
+  const w = original.width, h = original.height;
+  let cur = original, cw = w, ch = h;
+  const target = Math.max(8, Math.round(Math.max(w, h) / 48));
+  while (Math.max(cw, ch) / 2 >= target) {
+    cw = Math.max(1, Math.round(cw / 2)); ch = Math.max(1, Math.round(ch / 2));
+    const c = document.createElement("canvas"); c.width = cw; c.height = ch;
+    const x = c.getContext("2d"); x.imageSmoothingQuality = "high"; x.drawImage(cur, 0, 0, cw, ch);
+    cur = c;
+  }
+  while (cw * 2 < w) {
+    cw *= 2; ch *= 2;
+    const c = document.createElement("canvas"); c.width = cw; c.height = ch;
+    const x = c.getContext("2d"); x.imageSmoothingQuality = "high"; x.drawImage(cur, 0, 0, cw, ch);
+    cur = c;
+  }
+  bgCtx.imageSmoothingQuality = "high";
+  bgCtx.drawImage(cur, 0, 0, w, h);
+}
+function renderBackground() {
+  wrap.classList.toggle("checker", bg.type === "transparent");
+  wrap.style.background = bg.type === "color" ? bg.color : "";
+  const usesCanvas = bg.type === "blur" || bg.type === "photo";
+  bgView.style.display = usesCanvas ? "block" : "none";
+  if (!original || !usesCanvas) return;
+  bgCtx.clearRect(0, 0, bgView.width, bgView.height);
+  if (bg.type === "blur") drawBlur();
+  else drawCover(bgView, bgPhoto);
+}
+function selectBgButton(btn) {
+  document.querySelectorAll(".bottombar [data-bg]").forEach((b) => b.classList.toggle("active", b === btn));
+}
+document.querySelectorAll(".bottombar [data-bg]").forEach((b) => b.addEventListener("click", (e) => {
+  const t = b.dataset.bg;
+  if (t === "custom") return; // handled by the color input
+  if (t === "photo") { $("bgFile").click(); return; }
+  bg = t === "color" ? { type: "color", color: b.dataset.color } : { type: t };
+  selectBgButton(b); renderBackground();
 }));
+const onColor = () => {
+  bg = { type: "color", color: $("bgColor").value };
+  $("bgColorSwatch").style.background = $("bgColor").value;
+  selectBgButton($("bgColorSwatch")); renderBackground();
+};
+$("bgColor").addEventListener("input", onColor);
+$("bgColor").addEventListener("change", onColor);
+$("bgFile").addEventListener("change", async () => {
+  const f = $("bgFile").files[0]; if (!f) return;
+  bgPhoto = await loadFile(f);
+  bg = { type: "photo" };
+  selectBgButton(document.querySelector('[data-bg="photo"]')); renderBackground();
+  $("bgFile").value = "";
+});
 
 // ---------- History ----------
 function snapshot() {
@@ -331,18 +435,87 @@ function redo() { if (!redoStack.length) return; undoStack.push(snapshot()); res
 function updateHistoryButtons() { $("undo").disabled = !undoStack.length; $("redo").disabled = !redoStack.length; }
 $("undo").onclick = undo; $("redo").onclick = redo;
 document.addEventListener("keydown", (e) => {
-  if (!original) return;
+  if (!original || e.target.tagName === "INPUT" && e.target.type !== "range") return;
   const k = e.key.toLowerCase();
   if ((e.ctrlKey || e.metaKey) && k === "z" && !e.shiftKey) { e.preventDefault(); undo(); }
   else if ((e.ctrlKey || e.metaKey) && (k === "y" || (k === "z" && e.shiftKey))) { e.preventDefault(); redo(); }
+  else if (e.ctrlKey || e.metaKey || e.altKey) return;
   else if (k === "e") setTool("erase");
+  else if (k === "m") setTool("magic");
   else if (k === "r") setTool("restore");
+  else if (k === "c") setCompare(true);
   else if (k === " ") { e.preventDefault(); setTool("move"); }
   else if (k === "[") { $("size").value = +$("size").value - 4; }
   else if (k === "]") { $("size").value = +$("size").value + 4; }
 });
+document.addEventListener("keyup", (e) => { if (e.key.toLowerCase() === "c") setCompare(false); });
 
-// ---------- Painting ----------
+// ---------- Brush (erase / restore with soft edges) ----------
+const dabCanvas = document.createElement("canvas"), dabCtx = dabCanvas.getContext("2d");
+
+function brushGradient(c, cx, cy, r) {
+  const soft = +$("soft").value / 100;
+  const g = c.createRadialGradient(cx, cy, 0, cx, cy, r);
+  g.addColorStop(0, "rgba(0,0,0,1)");
+  g.addColorStop(Math.max(0, 1 - soft), "rgba(0,0,0,1)");
+  g.addColorStop(1, soft ? "rgba(0,0,0,0)" : "rgba(0,0,0,1)");
+  return g;
+}
+function dab(x, y, r) {
+  if (tool === "erase") {
+    ctx.save();
+    ctx.globalCompositeOperation = "destination-out";
+    ctx.fillStyle = brushGradient(ctx, x, y, r);
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  } else if (tool === "restore") {
+    // Cut a round (soft-edged) piece of the original photo and lay it on top
+    const ox = Math.floor(x - r), oy = Math.floor(y - r), size = Math.ceil(r * 2) + 2;
+    if (dabCanvas.width !== size) { dabCanvas.width = dabCanvas.height = size; }
+    dabCtx.globalCompositeOperation = "copy";
+    dabCtx.clearRect(0, 0, size, size);
+    dabCtx.drawImage(original, -ox, -oy);
+    dabCtx.globalCompositeOperation = "destination-in";
+    dabCtx.fillStyle = brushGradient(dabCtx, x - ox, y - oy, r);
+    dabCtx.beginPath(); dabCtx.arc(x - ox, y - oy, r, 0, Math.PI * 2); dabCtx.fill();
+    ctx.drawImage(dabCanvas, ox, oy);
+  }
+}
+
+// ---------- Magic eraser (flood fill by color) ----------
+function magicErase(px, py) {
+  const w = canvas.width, h = canvas.height;
+  const x0 = Math.floor(px), y0 = Math.floor(py);
+  if (x0 < 0 || y0 < 0 || x0 >= w || y0 >= h) return;
+  const img = ctx.getImageData(0, 0, w, h), d = img.data;
+  const seed = (y0 * w + x0) * 4;
+  if (d[seed + 3] === 0) { toast("That spot is already transparent"); return; }
+  const sr = d[seed], sg = d[seed + 1], sb = d[seed + 2];
+  const lim = (+$("tol").value / 100) * 441.7, lim2 = lim * lim;
+  const seen = new Uint8Array(w * h);
+  const stack = new Int32Array(w * h);
+  let sp = 0, count = 0;
+  stack[sp++] = y0 * w + x0; seen[y0 * w + x0] = 1;
+  while (sp) {
+    const p = stack[--sp], i = p * 4;
+    d[i + 3] = 0; count++;
+    const x = p % w;
+    const nbrs = [x > 0 ? p - 1 : -1, x < w - 1 ? p + 1 : -1, p - w, p + w];
+    for (const n of nbrs) {
+      if (n < 0 || n >= w * h || seen[n]) continue;
+      seen[n] = 1;
+      const j = n * 4;
+      if (d[j + 3] === 0) continue;
+      const dr = d[j] - sr, dg = d[j + 1] - sg, db = d[j + 2] - sb;
+      if (dr * dr + dg * dg + db * db <= lim2) stack[sp++] = n;
+    }
+  }
+  pushUndo();
+  ctx.putImageData(img, 0, 0);
+  toast(count < 50 ? "Only a few pixels matched. Try a higher tolerance" : "Erased");
+}
+
+// ---------- Pointer handling ----------
 let painting = false, last = null, panStart = null;
 const pointers = new Map();
 let pinch = null;
@@ -354,32 +527,20 @@ function toImage(e) {
 }
 function brushRadius(scale) { return (+$("size").value / 2) * scale; }
 
-function dab(x, y, r) {
-  if (tool === "erase") {
-    ctx.save();
-    ctx.globalCompositeOperation = "destination-out";
-    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
-    ctx.restore();
-  } else if (tool === "restore") {
-    ctx.save();
-    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.clip();
-    ctx.clearRect(x - r, y - r, r * 2, r * 2);
-    ctx.drawImage(original, 0, 0);
-    ctx.restore();
-  }
-}
 function strokeTo(p) {
   const r = brushRadius(p.scale);
   if (!last) { dab(p.x, p.y, r); last = p; return; }
   const dx = p.x - last.x, dy = p.y - last.y, dist = Math.hypot(dx, dy);
   const step = Math.max(1, r / 4);
-  for (let d = step; d <= dist; d += step) dab(last.x + (dx * d) / dist, last.y + (dy * d) / dist, r);
-  dab(p.x, p.y, r);
-  last = p;
+  if (dist < step) return;
+  let d = step;
+  for (; d <= dist; d += step) dab(last.x + (dx * d) / dist, last.y + (dy * d) / dist, r);
+  const t = (d - step) / dist;
+  last = { x: last.x + dx * t, y: last.y + dy * t, scale: p.scale };
 }
 
 function moveCursor(e) {
-  if (tool === "move" || e.pointerType === "touch") { cursorEl.style.display = "none"; return; }
+  if ((tool !== "erase" && tool !== "restore") || e.pointerType === "touch") { cursorEl.style.display = "none"; return; }
   const s = +$("size").value;
   Object.assign(cursorEl.style, {
     display: "block", width: s + "px", height: s + "px",
@@ -395,8 +556,7 @@ canvas.addEventListener("pointerdown", (e) => {
   if (pointers.size === 2) {
     if (painting) { painting = false; last = null; undo(); redoStack.length = 0; updateHistoryButtons(); }
     const [a, b] = [...pointers.values()];
-    pinch = { dist: Math.hypot(a.x - b.x, a.y - b.y), zoom, mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
-              sl: stage.scrollLeft, st: stage.scrollTop };
+    pinch = { dist: Math.hypot(a.x - b.x, a.y - b.y), zoom, mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } };
     return;
   }
   if (tool === "move" || e.button === 1) {
@@ -404,6 +564,7 @@ canvas.addEventListener("pointerdown", (e) => {
     return;
   }
   if (e.button !== 0) return;
+  if (tool === "magic") { const p = toImage(e); magicErase(p.x, p.y); return; }
   pushUndo();
   painting = true; last = null;
   strokeTo(toImage(e));
@@ -440,12 +601,23 @@ canvas.addEventListener("pointercancel", endPointer);
 canvas.addEventListener("pointerleave", () => { cursorEl.style.display = "none"; });
 
 // ---------- Export ----------
-function getBlob() { return new Promise((r) => canvas.toBlob(r, "image/png")); }
+function outputCanvas() {
+  if (bg.type === "transparent") return canvas;
+  const c = document.createElement("canvas");
+  c.width = canvas.width; c.height = canvas.height;
+  const x = c.getContext("2d");
+  if (bg.type === "color") { x.fillStyle = bg.color; x.fillRect(0, 0, c.width, c.height); }
+  else x.drawImage(bgView, 0, 0);
+  x.drawImage(canvas, 0, 0);
+  return c;
+}
+const outName = () => `${fileBase}-${bg.type === "transparent" ? "no-bg" : "new-bg"}.png`;
+function getBlob() { return new Promise((r) => outputCanvas().toBlob(r, "image/png")); }
 $("downloadBtn").onclick = async () => {
   const blob = await getBlob();
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = `${fileBase}-no-bg.png`;
+  a.download = outName();
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 10000);
 };
@@ -453,7 +625,7 @@ $("downloadBtn").onclick = async () => {
 if (navigator.canShare && navigator.canShare({ files: [new File([""], "x.png", { type: "image/png" })] })) {
   $("shareBtn").style.display = "";
   $("shareBtn").onclick = async () => {
-    const file = new File([await getBlob()], `${fileBase}-no-bg.png`, { type: "image/png" });
+    const file = new File([await getBlob()], outName(), { type: "image/png" });
     try { await navigator.share({ files: [file] }); } catch (err) { if (err.name !== "AbortError") alert(err.message); }
   };
 }
