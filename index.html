@@ -1,0 +1,462 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Malaking Edits</title>
+<style>
+  :root {
+    --bg: #f4f4f5; --panel: #ffffff; --text: #18181b; --muted: #71717a;
+    --border: #e4e4e7; --accent: #2563eb; --accent-text: #ffffff; --danger: #dc2626;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #09090b; --panel: #18181b; --text: #f4f4f5; --muted: #a1a1aa;
+      --border: #27272a; --accent: #3b82f6; --accent-text: #ffffff; --danger: #ef4444;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg); color: var(--text);
+    font: 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: flex; flex-direction: column;
+  }
+  header {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--border);
+  }
+  header h1 { font-size: 17px; margin: 0; }
+  button, .btn {
+    font: inherit; border: 1px solid var(--border); background: var(--panel); color: var(--text);
+    padding: 8px 12px; border-radius: 8px; cursor: pointer; white-space: nowrap;
+    display: inline-flex; align-items: center; gap: 6px; min-height: 38px;
+  }
+  button:hover:not(:disabled), .btn:hover { border-color: var(--muted); }
+  button:disabled { opacity: .45; cursor: default; }
+  button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  button.active { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+
+  main { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+
+  /* Upload screen */
+  #drop {
+    flex: 1; margin: 16px; border: 2px dashed var(--border); border-radius: 16px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 12px; text-align: center; padding: 24px; cursor: pointer;
+  }
+  #drop.over { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+  #drop p { margin: 0; color: var(--muted); max-width: 420px; }
+  #drop .big { font-size: 20px; color: var(--text); font-weight: 600; }
+
+  /* Progress */
+  #busy {
+    position: fixed; inset: 0; background: rgba(0,0,0,.55); display: none;
+    align-items: center; justify-content: center; z-index: 10; padding: 16px;
+  }
+  #busy .card {
+    background: var(--panel); border-radius: 14px; padding: 20px 24px; width: min(360px, 100%);
+    text-align: center;
+  }
+  #busy .bar { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; margin-top: 12px; }
+  #busy .bar > div { height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+  #busy small { display: block; color: var(--muted); margin-top: 8px; }
+
+  /* Editor */
+  #editor { flex: 1; display: none; flex-direction: column; min-height: 0; }
+  .toolbar {
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+    padding: 8px 16px; background: var(--panel); border-bottom: 1px solid var(--border);
+  }
+  .toolbar .group { display: flex; gap: 6px; align-items: center; }
+  .toolbar .sep { width: 1px; height: 26px; background: var(--border); }
+  .toolbar label { color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 6px; }
+  .toolbar input[type=range] { width: 110px; }
+  #stage {
+    flex: 1; overflow: auto; min-height: 0; position: relative;
+    display: grid; place-items: center; padding: 16px;
+  }
+  #stage.checker {
+    background-color: #fff;
+    background-image:
+      linear-gradient(45deg, #d4d4d8 25%, transparent 25%), linear-gradient(-45deg, #d4d4d8 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #d4d4d8 75%), linear-gradient(-45deg, transparent 75%, #d4d4d8 75%);
+    background-size: 20px 20px; background-position: 0 0, 0 10px, 10px -10px, -10px 0;
+  }
+  #stage.white { background: #fff; }
+  #stage.black { background: #000; }
+  #stage.green { background: #16a34a; }
+  #canvas { display: block; touch-action: none; box-shadow: 0 0 0 1px rgba(0,0,0,.15); }
+  #stage.tool-move #canvas { cursor: grab; }
+  #stage.tool-erase #canvas, #stage.tool-restore #canvas { cursor: none; }
+  #cursor {
+    position: fixed; pointer-events: none; border-radius: 50%; display: none; z-index: 5;
+    border: 1.5px solid #fff; box-shadow: 0 0 0 1px #000, inset 0 0 0 1px #000;
+  }
+  .bottombar {
+    display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center;
+    padding: 10px 16px; background: var(--panel); border-top: 1px solid var(--border);
+  }
+  .bottombar .info { color: var(--muted); font-size: 13px; }
+  .swatch { width: 22px; height: 22px; padding: 0; min-height: 0; border-radius: 50%; }
+  .swatch.active { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .swatch.checker {
+    background-image: conic-gradient(#d4d4d8 25%, #fff 0 50%, #d4d4d8 0 75%, #fff 0);
+    background-size: 10px 10px;
+  }
+  @media (max-width: 640px) {
+    .toolbar { padding: 8px; gap: 6px; }
+    .toolbar .sep { display: none; }
+    .toolbar input[type=range] { width: 90px; }
+    button { padding: 7px 10px; }
+    .hide-sm { display: none; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Malaking Edits</h1>
+  <button id="newBtn" style="display:none">New photo</button>
+</header>
+
+<main>
+  <label id="drop">
+    <input id="file" type="file" accept="image/*" hidden>
+    <div class="big">Tap or drop a photo here</div>
+    <p>The background is removed right on your device. Your photo is never uploaded or stored anywhere.</p>
+    <p><small>The first run downloads the AI model (about 40–80 MB). After that, it loads from your browser's cache.</small></p>
+  </label>
+
+  <section id="editor">
+    <div class="toolbar">
+      <div class="group">
+        <button id="toolErase" class="active" title="Erase leftover background">Erase</button>
+        <button id="toolRestore" title="Paint back parts of the original photo">Restore</button>
+        <button id="toolMove" title="Drag to move around when zoomed in">Move</button>
+      </div>
+      <div class="sep"></div>
+      <label>Brush <input id="size" type="range" min="4" max="150" value="30"></label>
+      <div class="sep"></div>
+      <div class="group">
+        <button id="zoomOut" title="Zoom out">−</button>
+        <button id="zoomFit" title="Fit to screen">Fit</button>
+        <button id="zoomIn" title="Zoom in">+</button>
+      </div>
+      <div class="sep"></div>
+      <div class="group">
+        <button id="undo" disabled title="Undo (Ctrl+Z)">Undo</button>
+        <button id="redo" disabled title="Redo (Ctrl+Y)">Redo</button>
+      </div>
+      <div class="sep"></div>
+      <div class="group" title="Preview background, to spot leftover bits. It is not saved in the download.">
+        <span class="hide-sm" style="color:var(--muted);font-size:13px">Preview</span>
+        <button class="swatch checker active" data-bg="checker" aria-label="Checkerboard"></button>
+        <button class="swatch" data-bg="white" style="background:#fff" aria-label="White"></button>
+        <button class="swatch" data-bg="black" style="background:#000" aria-label="Black"></button>
+        <button class="swatch" data-bg="green" style="background:#16a34a" aria-label="Green"></button>
+      </div>
+    </div>
+
+    <div id="stage" class="checker tool-erase">
+      <canvas id="canvas"></canvas>
+    </div>
+
+    <div class="bottombar">
+      <span class="info" id="info"></span>
+      <div class="group" style="display:flex;gap:8px">
+        <button id="shareBtn" style="display:none">Share / Save to Photos</button>
+        <button id="downloadBtn" class="primary">Download PNG</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="cursor"></div>
+<div id="busy"><div class="card">
+  <div id="busyText">Removing background…</div>
+  <div class="bar"><div id="busyBar"></div></div>
+  <small id="busySub"></small>
+</div></div>
+
+<script type="module">
+import { removeBackground } from "https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/+esm";
+
+const $ = (id) => document.getElementById(id);
+const drop = $("drop"), fileInput = $("file"), editor = $("editor"), stage = $("stage");
+const canvas = $("canvas"), ctx = canvas.getContext("2d", { willReadFrequently: true });
+const cursorEl = $("cursor");
+
+let original = null;      // canvas holding the original photo at full size
+let fileBase = "image";
+let tool = "erase";
+let zoom = 1;             // 1 = fit to screen
+const undoStack = [], redoStack = [];
+const MAX_HISTORY = 15;
+
+// ---------- Upload ----------
+fileInput.addEventListener("change", () => fileInput.files[0] && handleFile(fileInput.files[0]));
+["dragenter", "dragover"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", (e) => { const f = e.dataTransfer.files[0]; if (f) handleFile(f); });
+$("newBtn").addEventListener("click", () => {
+  editor.style.display = "none"; drop.style.display = "flex"; $("newBtn").style.display = "none";
+  fileInput.value = ""; original = null; undoStack.length = redoStack.length = 0;
+});
+
+function loadImage(src) {
+  return new Promise((res, rej) => { const img = new Image(); img.onload = () => res(img); img.onerror = rej; img.src = src; });
+}
+
+function showBusy(on, text = "Removing background…") {
+  $("busy").style.display = on ? "flex" : "none";
+  $("busyText").textContent = text; $("busyBar").style.width = "0"; $("busySub").textContent = "";
+}
+
+async function handleFile(file) {
+  if (!file.type.startsWith("image/")) { alert("Please choose an image file."); return; }
+  fileBase = file.name.replace(/\.[^.]+$/, "") || "image";
+  showBusy(true);
+  try {
+    // Load the original with the phone's rotation already applied
+    const url = URL.createObjectURL(file);
+    const img = await loadImage(url);
+    URL.revokeObjectURL(url);
+    const w = img.naturalWidth, h = img.naturalHeight;
+    original = document.createElement("canvas");
+    original.width = w; original.height = h;
+    original.getContext("2d").drawImage(img, 0, 0);
+
+    // Send the already-oriented pixels so the mask lines up exactly
+    const srcBlob = await new Promise((r) => original.toBlob(r, "image/png"));
+    const resultBlob = await removeBackground(srcBlob, {
+      model: "isnet_fp16",
+      output: { format: "image/png", quality: 1 },
+      progress: (key, cur, total) => {
+        if (key.startsWith("fetch")) {
+          $("busyText").textContent = "Downloading AI model (first time only)…";
+          $("busyBar").style.width = Math.round((cur / total) * 100) + "%";
+          $("busySub").textContent = `${(cur / 1e6).toFixed(0)} / ${(total / 1e6).toFixed(0)} MB`;
+        } else {
+          $("busyText").textContent = "Removing background…";
+          $("busyBar").style.width = total ? Math.round((cur / total) * 100) + "%" : "60%";
+          $("busySub").textContent = "";
+        }
+      },
+    });
+    const resUrl = URL.createObjectURL(resultBlob);
+    const resImg = await loadImage(resUrl);
+    URL.revokeObjectURL(resUrl);
+
+    // Output stays exactly the same pixel size as the original
+    canvas.width = w; canvas.height = h;
+    ctx.clearRect(0, 0, w, h);
+    ctx.drawImage(resImg, 0, 0, w, h);
+
+    undoStack.length = redoStack.length = 0; updateHistoryButtons();
+    drop.style.display = "none"; editor.style.display = "flex"; $("newBtn").style.display = "";
+    $("info").textContent = `${w} × ${h} px, same as the original`;
+    zoom = 1; applyZoom();
+  } catch (err) {
+    console.error(err);
+    alert("Something went wrong: " + (err?.message || err));
+  } finally {
+    showBusy(false);
+  }
+}
+
+// ---------- Zoom ----------
+function fitScale() {
+  const pad = 32;
+  const sw = stage.clientWidth - pad, sh = stage.clientHeight - pad;
+  return Math.min(sw / canvas.width, sh / canvas.height, 1);
+}
+function applyZoom(anchor) {
+  const prev = canvas.getBoundingClientRect();
+  const s = fitScale() * zoom;
+  canvas.style.width = canvas.width * s + "px";
+  canvas.style.height = canvas.height * s + "px";
+  // keep the point under the anchor roughly in place
+  if (anchor && prev.width) {
+    const rx = (anchor.x - prev.left) / prev.width, ry = (anchor.y - prev.top) / prev.height;
+    const now = canvas.getBoundingClientRect();
+    stage.scrollLeft += (now.left + rx * now.width) - anchor.x;
+    stage.scrollTop += (now.top + ry * now.height) - anchor.y;
+  }
+}
+function setZoom(z, anchor) { zoom = Math.max(1, Math.min(z, 16)); applyZoom(anchor); }
+$("zoomIn").onclick = () => setZoom(zoom * 1.5);
+$("zoomOut").onclick = () => setZoom(zoom / 1.5);
+$("zoomFit").onclick = () => setZoom(1);
+window.addEventListener("resize", () => original && applyZoom());
+stage.addEventListener("wheel", (e) => {
+  if (!original || !(e.ctrlKey || e.metaKey)) return;
+  e.preventDefault();
+  setZoom(zoom * (e.deltaY < 0 ? 1.15 : 1 / 1.15), { x: e.clientX, y: e.clientY });
+}, { passive: false });
+
+// ---------- Tools ----------
+function setTool(t) {
+  tool = t;
+  for (const [id, name] of [["toolErase", "erase"], ["toolRestore", "restore"], ["toolMove", "move"]])
+    $(id).classList.toggle("active", name === t);
+  stage.className = stage.className.replace(/tool-\w+/, "tool-" + t);
+  if (t === "move") cursorEl.style.display = "none";
+}
+$("toolErase").onclick = () => setTool("erase");
+$("toolRestore").onclick = () => setTool("restore");
+$("toolMove").onclick = () => setTool("move");
+
+document.querySelectorAll(".swatch").forEach((b) => b.addEventListener("click", () => {
+  document.querySelectorAll(".swatch").forEach((x) => x.classList.remove("active"));
+  b.classList.add("active");
+  stage.classList.remove("checker", "white", "black", "green");
+  stage.classList.add(b.dataset.bg);
+}));
+
+// ---------- History ----------
+function snapshot() {
+  const c = document.createElement("canvas");
+  c.width = canvas.width; c.height = canvas.height;
+  c.getContext("2d").drawImage(canvas, 0, 0);
+  return c;
+}
+function restoreFrom(c) { ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.drawImage(c, 0, 0); }
+function pushUndo() {
+  undoStack.push(snapshot());
+  if (undoStack.length > MAX_HISTORY) undoStack.shift();
+  redoStack.length = 0; updateHistoryButtons();
+}
+function undo() { if (!undoStack.length) return; redoStack.push(snapshot()); restoreFrom(undoStack.pop()); updateHistoryButtons(); }
+function redo() { if (!redoStack.length) return; undoStack.push(snapshot()); restoreFrom(redoStack.pop()); updateHistoryButtons(); }
+function updateHistoryButtons() { $("undo").disabled = !undoStack.length; $("redo").disabled = !redoStack.length; }
+$("undo").onclick = undo; $("redo").onclick = redo;
+document.addEventListener("keydown", (e) => {
+  if (!original) return;
+  const k = e.key.toLowerCase();
+  if ((e.ctrlKey || e.metaKey) && k === "z" && !e.shiftKey) { e.preventDefault(); undo(); }
+  else if ((e.ctrlKey || e.metaKey) && (k === "y" || (k === "z" && e.shiftKey))) { e.preventDefault(); redo(); }
+  else if (k === "e") setTool("erase");
+  else if (k === "r") setTool("restore");
+  else if (k === " ") { e.preventDefault(); setTool("move"); }
+  else if (k === "[") { $("size").value = +$("size").value - 4; }
+  else if (k === "]") { $("size").value = +$("size").value + 4; }
+});
+
+// ---------- Painting ----------
+let painting = false, last = null, panStart = null;
+const pointers = new Map();
+let pinch = null;
+
+function toImage(e) {
+  const r = canvas.getBoundingClientRect();
+  const scale = canvas.width / r.width;
+  return { x: (e.clientX - r.left) * scale, y: (e.clientY - r.top) * scale, scale };
+}
+function brushRadius(scale) { return (+$("size").value / 2) * scale; }
+
+function dab(x, y, r) {
+  if (tool === "erase") {
+    ctx.save();
+    ctx.globalCompositeOperation = "destination-out";
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  } else if (tool === "restore") {
+    ctx.save();
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.clip();
+    ctx.clearRect(x - r, y - r, r * 2, r * 2);
+    ctx.drawImage(original, 0, 0);
+    ctx.restore();
+  }
+}
+function strokeTo(p) {
+  const r = brushRadius(p.scale);
+  if (!last) { dab(p.x, p.y, r); last = p; return; }
+  const dx = p.x - last.x, dy = p.y - last.y, dist = Math.hypot(dx, dy);
+  const step = Math.max(1, r / 4);
+  for (let d = step; d <= dist; d += step) dab(last.x + (dx * d) / dist, last.y + (dy * d) / dist, r);
+  dab(p.x, p.y, r);
+  last = p;
+}
+
+function moveCursor(e) {
+  if (tool === "move" || e.pointerType === "touch") { cursorEl.style.display = "none"; return; }
+  const s = +$("size").value;
+  Object.assign(cursorEl.style, {
+    display: "block", width: s + "px", height: s + "px",
+    left: e.clientX - s / 2 + "px", top: e.clientY - s / 2 + "px",
+  });
+}
+
+canvas.addEventListener("pointerdown", (e) => {
+  canvas.setPointerCapture(e.pointerId);
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+  // two fingers = pinch zoom / pan, cancel any stroke in progress
+  if (pointers.size === 2) {
+    if (painting) { painting = false; last = null; undo(); redoStack.length = 0; updateHistoryButtons(); }
+    const [a, b] = [...pointers.values()];
+    pinch = { dist: Math.hypot(a.x - b.x, a.y - b.y), zoom, mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+              sl: stage.scrollLeft, st: stage.scrollTop };
+    return;
+  }
+  if (tool === "move" || e.button === 1) {
+    panStart = { x: e.clientX, y: e.clientY, sl: stage.scrollLeft, st: stage.scrollTop };
+    return;
+  }
+  if (e.button !== 0) return;
+  pushUndo();
+  painting = true; last = null;
+  strokeTo(toImage(e));
+});
+canvas.addEventListener("pointermove", (e) => {
+  moveCursor(e);
+  if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pinch && pointers.size >= 2) {
+    const [a, b] = [...pointers.values()];
+    const d = Math.hypot(a.x - b.x, a.y - b.y);
+    setZoom(pinch.zoom * (d / pinch.dist), pinch.mid);
+    const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    stage.scrollLeft -= mid.x - pinch.mid.x; stage.scrollTop -= mid.y - pinch.mid.y;
+    pinch.mid = mid;
+    return;
+  }
+  if (panStart) {
+    stage.scrollLeft = panStart.sl - (e.clientX - panStart.x);
+    stage.scrollTop = panStart.st - (e.clientY - panStart.y);
+    return;
+  }
+  if (painting) {
+    const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+    for (const ce of evs) strokeTo(toImage(ce));
+  }
+});
+function endPointer(e) {
+  pointers.delete(e.pointerId);
+  if (pointers.size < 2) pinch = null;
+  painting = false; last = null; panStart = null;
+}
+canvas.addEventListener("pointerup", endPointer);
+canvas.addEventListener("pointercancel", endPointer);
+canvas.addEventListener("pointerleave", () => { cursorEl.style.display = "none"; });
+
+// ---------- Export ----------
+function getBlob() { return new Promise((r) => canvas.toBlob(r, "image/png")); }
+$("downloadBtn").onclick = async () => {
+  const blob = await getBlob();
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `${fileBase}-no-bg.png`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+};
+// On phones, the share sheet lets you "Save Image" straight to Photos/Gallery
+if (navigator.canShare && navigator.canShare({ files: [new File([""], "x.png", { type: "image/png" })] })) {
+  $("shareBtn").style.display = "";
+  $("shareBtn").onclick = async () => {
+    const file = new File([await getBlob()], `${fileBase}-no-bg.png`, { type: "image/png" });
+    try { await navigator.share({ files: [file] }); } catch (err) { if (err.name !== "AbortError") alert(err.message); }
+  };
+}
+</script>
+</body>
+</html>
