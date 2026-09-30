@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-<title>Malaking Edits</title>
+<title>Malaking Edits To-its</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&family=Rock+Salt&display=swap" rel="stylesheet">
@@ -163,6 +163,8 @@
   .swatch input[type=color] { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; padding: 0; cursor: pointer; opacity: 0; }
   #bgColorSwatch { background: conic-gradient(#f87171, #facc15, #4ade80, #38bdf8, #a78bfa, #f87171); }
 
+  footer { text-align: center; font-size: 15px; color: var(--pencil); padding: 0 12px 8px; }
+
   /* ---------- sticky-note messages ---------- */
   #toast {
     position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%) rotate(-2deg);
@@ -194,7 +196,9 @@
     :root { --gutter: 30px; }
     body { background-image: linear-gradient(90deg, transparent 0 18px, var(--margin) 18px 19.5px, transparent 19.5px), repeating-linear-gradient(transparent 0 31px, var(--rule) 31px 32px); }
     header, .toolbar, .bottombar { padding-right: 12px; }
-    header h1 { font-size: 19px; }
+    header h1 { font-size: 17px; }
+    footer { padding-bottom: max(6px, env(safe-area-inset-bottom)); }
+    .bottombar { padding-bottom: 6px !important; }
     #stage { padding: 34px 26px 34px var(--gutter); }
     #drop { margin: 14px 14px 18px calc(var(--gutter) + 4px); }
     #drop .big { font-size: 21px; }
@@ -234,8 +238,8 @@
   <filter id="rough-big"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="9"/><feDisplacementMap in="SourceGraphic" scale="6"/></filter>
 </svg>
 <header>
-  <h1>Malaking <span>Edits</span></h1>
-  <button id="newBtn" style="display:none">New photo</button>
+  <h1>Malaking <span>Edits</span> To-its</h1>
+  <button id="newBtn" style="display:none">New<span class="hide-sm"> photo</span></button>
 </header>
 
 <main>
@@ -342,6 +346,7 @@
     </div>
   </section>
 </main>
+<footer>© OV Apps 2026</footer>
 
 <div id="cursor"></div>
 <div id="toast"></div>
