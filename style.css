@@ -1,0 +1,237 @@
+  /* Sketchbook theme: a notebook page drawn in pencil, ballpoint and highlighter */
+  :root {
+    --paper: #fdfdf8;       /* notebook paper */
+    --rule: #d6e2ef;        /* faint blue ruled lines */
+    --margin: #efb4b4;      /* red margin line */
+    --ink: #2a2a30;         /* graphite pencil */
+    --pencil: #85858e;      /* light pencil for secondary text */
+    --pen: #1e3f9e;         /* blue ballpoint */
+    --marker: #ffe25e;      /* yellow highlighter */
+    --tape: rgba(236, 226, 196, .85);
+    --hand: "Patrick Hand", "Comic Sans MS", cursive;
+    --scrawl: "Rock Salt", "Patrick Hand", cursive;
+    --wobble-a: 255px 15px 225px 15px / 15px 225px 15px 255px;
+    --wobble-b: 15px 225px 15px 255px / 255px 15px 225px 15px;
+    --gutter: 64px;         /* space left of the margin line */
+    color-scheme: light;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { height: 100dvh; }
+  body {
+    font: 18px/1.35 var(--hand); color: var(--ink);
+    display: flex; flex-direction: column;
+    background-color: var(--paper);
+    background-image:
+      linear-gradient(90deg, transparent 0 46px, var(--margin) 46px 48px, transparent 48px),
+      repeating-linear-gradient(transparent 0 31px, var(--rule) 31px 32px);
+  }
+
+  /* hand-drawn pencil line under (or over) each strip */
+  header, .toolbar, .bottombar {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 8' preserveAspectRatio='none'%3E%3Cpath d='M0 4 C 20 1, 40 7, 60 4 S 100 2, 120 4' fill='none' stroke='%232a2a30' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: repeat-x; background-position: bottom; background-size: 240px 8px;
+  }
+  .bottombar { background-position: top; }
+
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 20px 14px var(--gutter); }
+  header h1 { font: 400 23px/1.2 var(--scrawl); margin: 0; letter-spacing: .5px; }
+  header h1 span { background: linear-gradient(transparent 55%, var(--marker) 55% 92%, transparent 92%); padding: 0 4px; }
+
+  /* ---------- Photo / Layers tabs ---------- */
+  .tabs { display: flex; gap: 6px; margin-right: auto; margin-left: 14px; }
+  .tab {
+    position: relative; isolation: isolate; color: var(--ink); text-decoration: none;
+    font-size: 18px; padding: 6px 14px; line-height: 1;
+  }
+  .tab::before {
+    content: ""; position: absolute; inset: 0; z-index: -1; border: 2px solid var(--ink);
+    border-bottom: 0; border-radius: 14px 18px 0 0 / 12px 14px 0 0; background: var(--paper); filter: url(#rough);
+  }
+  .tab.active::before { background: var(--marker); }
+  .tab:focus-visible { outline: 2px dashed var(--pen); outline-offset: 4px; }
+
+  /* ---------- sketchy buttons: the outline is drawn on ::before and roughened ---------- */
+  button {
+    position: relative; isolation: isolate;
+    font: 400 18px/1 var(--hand); color: var(--ink);
+    background: none; border: 0; padding: 8px 15px; min-height: 40px;
+    display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+    cursor: pointer; user-select: none; -webkit-user-select: none;
+    transition: transform .12s ease;
+  }
+  button::before {
+    content: ""; position: absolute; inset: 0; z-index: -1;
+    border: 2px solid var(--ink); border-radius: var(--wobble-a);
+    background: var(--paper); filter: url(#rough);
+  }
+  button:nth-child(even)::before { border-radius: var(--wobble-b); }
+  button:hover:not(:disabled) { transform: rotate(-1.5deg); }
+  button:active:not(:disabled) { transform: translate(1px, 2px); }
+  button:disabled { opacity: .38; cursor: default; }
+  button:focus-visible { outline: 2px dashed var(--pen); outline-offset: 5px; }
+  button.active::before { background: var(--marker); }
+  button.primary { color: #fff; }
+  button.primary::before { background: var(--pen); border-color: var(--pen); box-shadow: 3px 3px 0 var(--ink); }
+  #compareBtn.active::before { background: #ffb870; }
+  .pill { font-size: 16px; min-height: 32px; padding: 5px 11px; }
+
+  main { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  #editor { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  #editor.empty #stage, #editor:not(.empty) #drop { display: none; }
+  #editor.empty .toolbar, #editor.empty .bottombar { pointer-events: none; }
+  #editor.empty .toolbar > *, #editor.empty .bottombar > * { opacity: .4; }
+  #brushOpts, #magicOpts { margin-right: 6px; }
+
+  .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 10px 20px 16px var(--gutter); }
+  .group { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .sep { width: 2px; height: 28px; background: var(--ink); opacity: .25; border-radius: 2px; transform: rotate(4deg); }
+  .toolbar label, .bglabel { display: flex; align-items: center; gap: 8px; font-size: 17px; }
+  .hint { flex-basis: 100%; color: var(--pen); font-size: 17px; transform: rotate(-.4deg); }
+  .hint b { font-weight: 400; background: linear-gradient(transparent 60%, var(--marker) 60%); }
+  #expandPanel { display: none; }
+  #expandPanel.open { display: flex; }
+
+  /* ---------- pencil sliders ---------- */
+  input[type=range] { -webkit-appearance: none; appearance: none; width: 110px; height: 24px; background: none; cursor: pointer; }
+  input[type=range]::-webkit-slider-runnable-track { height: 3px; background: var(--ink); border-radius: 3px; }
+  input[type=range]::-moz-range-track { height: 3px; background: var(--ink); border-radius: 3px; }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 18px; height: 18px; margin-top: -8px;
+    border: 2px solid var(--ink); border-radius: 50% 42% 55% 47%; background: var(--marker);
+  }
+  input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border: 2px solid var(--ink); border-radius: 50% 42% 55% 47%; background: var(--marker); }
+  input[type=range]:focus-visible { outline: 2px dashed var(--pen); outline-offset: 3px; }
+
+  /* ---------- position grid ---------- */
+  .anchor { display: grid; grid-template-columns: repeat(3, 18px); gap: 4px; }
+  .anchor button { width: 18px; height: 18px; min-height: 0; padding: 0; }
+  .anchor button.active::before { background: var(--ink); }
+
+  /* ---------- home: hand-drawn drop box ---------- */
+  #drop {
+    flex: 1; margin: 18px 24px 24px calc(var(--gutter) + 8px); position: relative; isolation: isolate;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 12px; text-align: center; padding: 24px; cursor: pointer;
+  }
+  #drop::before {
+    content: ""; position: absolute; inset: 0; z-index: -1;
+    border: 2.5px dashed var(--ink); border-radius: 18px 30px 22px 28px / 26px 18px 30px 20px; filter: url(#rough-big);
+  }
+  #drop.over::before { background: rgba(255, 226, 94, .35); }
+  #drop .big { font: 400 26px/1.3 var(--scrawl); }
+  #drop p { margin: 0; max-width: 440px; color: var(--pencil); }
+
+  /* ---------- the page / taped photo ---------- */
+  #stage { flex: 1; overflow: auto; min-height: 0; display: flex; padding: 40px 34px 40px var(--gutter); }
+  #wrap {
+    margin: auto; position: relative; flex: none; touch-action: none;
+    box-shadow: 1px 2px 0 rgba(0,0,0,.06), 0 10px 22px -6px rgba(40,40,60,.28);
+  }
+  #wrap.checker, .swatch.checker {
+    background-color: #fff;
+    background-image:
+      linear-gradient(45deg, #e4e4e7 25%, transparent 25%), linear-gradient(-45deg, #e4e4e7 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #e4e4e7 75%), linear-gradient(-45deg, transparent 75%, #e4e4e7 75%);
+    background-size: 20px 20px; background-position: 0 0, 0 10px, 10px -10px, -10px 0;
+  }
+  .swatch.checker { background-size: 10px 10px; background-position: 0 0, 0 5px, 5px -5px, -5px 0; }
+  .tape {
+    position: absolute; width: var(--tw, 90px); height: calc(var(--tw, 90px) * .29); background: var(--tape); z-index: 4; pointer-events: none;
+    clip-path: polygon(0 8%, 4% 0, 8% 10%, 12% 0, 100% 0, 96% 12%, 100% 25%, 96% 40%, 100% 55%, 96% 70%, 100% 85%, 96% 100%, 0 100%, 4% 88%, 0 72%, 4% 58%, 0 42%, 4% 28%);
+  }
+  .tape.tl { top: calc(var(--tw, 90px) * -.07); left: calc(var(--tw, 90px) * -.25); transform: rotate(-38deg); }
+  .tape.br { bottom: calc(var(--tw, 90px) * -.07); right: calc(var(--tw, 90px) * -.25); transform: rotate(-38deg); }
+  #canvas { display: block; position: absolute; }
+  #bgView { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; display: none; }
+  #wrap > .orig { position: absolute; pointer-events: none; visibility: hidden; z-index: 2; }
+  #wrap.comparing > .orig { visibility: visible; }
+  #stage.tool-move #wrap { cursor: grab; }
+  #stage.tool-magic #wrap { cursor: crosshair; }
+  #stage.tool-erase #wrap, #stage.tool-restore #wrap { cursor: none; }
+  #cursor {
+    position: fixed; pointer-events: none; border-radius: 50%; display: none; z-index: 5;
+    border: 1.5px solid #fff; box-shadow: 0 0 0 1px var(--ink), inset 0 0 0 1px var(--ink);
+  }
+
+  /* ---------- bottom bar & swatches ---------- */
+  .bottombar { display: flex; flex-wrap: wrap; gap: 10px 18px; justify-content: space-between; align-items: center; padding: 16px 20px 14px var(--gutter); }
+  .bottombar .info { color: var(--pencil); font-size: 16px; }
+  .swatch { width: 32px; height: 32px; min-height: 0; padding: 0; border-radius: 50%; }
+  .swatch::before, .swatch.active::before { border-radius: 50% 44% 53% 47%; background: transparent; }
+  .swatch.active::after {
+    content: ""; position: absolute; inset: -7px; border: 2px solid var(--pen);
+    border-radius: 47% 53% 45% 55%; filter: url(#rough);
+  }
+  .swatch input[type=color] { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; padding: 0; cursor: pointer; opacity: 0; }
+  #bgColorSwatch { background: conic-gradient(#f87171, #facc15, #4ade80, #38bdf8, #a78bfa, #f87171); }
+
+  footer { text-align: center; font-size: 15px; color: var(--pencil); padding: 0 12px 8px; }
+
+  /* ---------- sticky-note messages ---------- */
+  #toast {
+    position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%) rotate(-2deg);
+    max-width: min(260px, 80vw); padding: 14px 16px 16px; background: #fff27a; color: var(--ink);
+    font-size: 18px; box-shadow: 0 12px 18px -10px rgba(0,0,0,.35);
+    opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 20;
+  }
+
+  /* ---------- loading: an index card ---------- */
+  #busy {
+    position: fixed; inset: 0; background: rgba(253,253,248,.72); backdrop-filter: blur(2px); display: none;
+    align-items: center; justify-content: center; z-index: 30; padding: 16px;
+  }
+  #busy .card {
+    width: min(360px, 100%); padding: 22px 26px 26px; text-align: center; transform: rotate(-1.2deg); font-size: 22px;
+    background-color: #fff;
+    background-image: linear-gradient(transparent 0 44px, #f0a6a6 44px 46px, transparent 46px), repeating-linear-gradient(transparent 0 27px, var(--rule) 27px 28px);
+    box-shadow: 0 14px 26px -10px rgba(0,0,0,.35);
+  }
+  #busy .bar { position: relative; height: 22px; margin-top: 18px; isolation: isolate; }
+  #busy .bar::before { content: ""; position: absolute; inset: 0; border: 2px solid var(--ink); border-radius: var(--wobble-a); filter: url(#rough); }
+  #busy .bar > div {
+    position: absolute; left: 4px; top: 4px; bottom: 4px; width: 0; max-width: calc(100% - 8px); z-index: -1; transition: width .2s;
+    background: repeating-linear-gradient(-55deg, var(--pen) 0 2px, transparent 2px 7px);
+  }
+  #busy small { display: block; color: var(--pencil); margin-top: 10px; font-size: 16px; }
+
+  @media (max-width: 700px) {
+    :root { --gutter: 30px; }
+    body { background-image: linear-gradient(90deg, transparent 0 18px, var(--margin) 18px 19.5px, transparent 19.5px), repeating-linear-gradient(transparent 0 31px, var(--rule) 31px 32px); }
+    header, .toolbar, .bottombar { padding-right: 12px; }
+    header h1 { font-size: 17px; }
+    header { flex-wrap: wrap; row-gap: 8px; padding-bottom: 0; }
+    .tabs { order: 3; flex-basis: 100%; margin: 0; }
+    .tab { font-size: 17px; padding: 6px 16px 8px; }
+    footer { padding-bottom: max(6px, env(safe-area-inset-bottom)); }
+    .bottombar { padding-bottom: 6px !important; }
+    #stage { padding: 34px 26px 34px var(--gutter); }
+    #drop { margin: 14px 14px 18px calc(var(--gutter) + 4px); }
+    #drop .big { font-size: 21px; }
+    .sep, .hint { display: none; }
+    button { font-size: 17px; padding: 7px 12px; min-height: 38px; }
+    input[type=range] { width: 84px; }
+    /* one swipeable row per toolbar so the photo keeps its space */
+    .toolbar, .bottombar > .group:first-child { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+    .toolbar { padding-top: 8px; padding-bottom: 12px; }
+    .toolbar::-webkit-scrollbar, .bottombar > .group:first-child::-webkit-scrollbar { display: none; }
+    .toolbar .group { flex-wrap: nowrap; }
+    .toolbar > *, .group > * { flex: none; }
+    .bottombar { flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 8px; }
+    .bottombar > .group { min-width: 0; }
+    .bottombar > .group:first-child { padding: 8px 4px; }
+    .hide-sm { display: none; }
+    /* info on its own line, then the save buttons share the full width */
+    .bottombar > .group:last-child { flex-wrap: wrap; gap: 8px 10px; }
+    .bottombar .info { flex: 1 1 100%; }
+    .bottombar > .group:last-child > button { flex: 1 1 0; justify-content: center; min-width: 0; }
+    .bottombar { padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+    /* fade the right edge of swipeable rows so it's clear there is more */
+    .toolbar, .bottombar > .group:first-child {
+      -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 36px), transparent);
+      mask-image: linear-gradient(90deg, #000 calc(100% - 36px), transparent);
+      padding-right: 36px;
+    }
+    .bottombar > .group:first-child { gap: 12px; padding: 9px 36px 9px 2px; }
+  }
+  @media (prefers-reduced-motion: reduce) { button, #toast { transition: none; } button:hover:not(:disabled) { transform: none; } }

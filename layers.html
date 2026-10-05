@@ -1,0 +1,792 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Layers · Malaking Edits To-its</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&family=Rock+Salt&display=swap" rel="stylesheet">
+<!-- Fonts offered for text layers -->
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo+Black&family=Bebas+Neue&family=Dancing+Script:wght@700&family=Montserrat:wght@400;700;900&family=Oswald:wght@400;700&family=Pacifico&family=Playfair+Display:wght@400;700&family=Poppins:wght@400;700;900&family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<style>
+  /* Layers page additions (base look comes from style.css) */
+  #wrap { box-shadow: 1px 2px 0 rgba(0,0,0,.06), 0 10px 22px -6px rgba(40,40,60,.28); touch-action: pan-x pan-y; }
+  #stage.mode-lift #wrap { touch-action: none; cursor: crosshair; }
+  #baseView { display: block; width: 100%; height: 100%; }
+  .layer { position: absolute; touch-action: none; cursor: move; }
+  .layer canvas { display: block; width: 100%; height: 100%; pointer-events: none; }
+  .layer.selected { outline: 2px dashed var(--pen); outline-offset: 2px; }
+  #stage.mode-lift .layer { pointer-events: none; }
+  .handle {
+    position: absolute; right: -13px; bottom: -13px; width: 24px; height: 24px; display: none;
+    background: var(--marker); border: 2px solid var(--ink); border-radius: 50% 44% 53% 47%;
+    cursor: nwse-resize; touch-action: none;
+  }
+  .layer.selected .handle { display: block; }
+  #band { position: absolute; display: none; border: 2px dashed var(--pen); background: rgba(30,63,158,.08); pointer-events: none; z-index: 6; }
+  .ocr-box {
+    position: absolute; border: 2px dashed var(--pen); background: rgba(255,226,94,.18); z-index: 5;
+    cursor: pointer; display: none; padding: 0; min-height: 0;
+  }
+  .ocr-box::before { display: none; }
+  .ocr-box:hover { background: rgba(255,226,94,.45); transform: none !important; }
+  #stage.mode-text.show-ocr .ocr-box { display: block; }
+  .opts { display: none; }
+  .opts.show { display: flex; }
+  #props textarea {
+    font: 18px/1.2 var(--hand); color: var(--ink); width: 220px; height: 40px; resize: vertical;
+    background: #fff; border: 2px solid var(--ink); border-radius: 10px 14px 9px 12px; padding: 6px 8px;
+  }
+  #props select, #props input[type=number] {
+    font: 17px var(--hand); color: var(--ink); background: #fff; height: 36px;
+    border: 2px solid var(--ink); border-radius: 12px 9px 13px 8px; padding: 0 6px;
+  }
+  #props input[type=number] { width: 70px; }
+  .colorchip { position: relative; width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--ink); overflow: hidden; flex: none; }
+  .colorchip input { position: absolute; inset: -6px; width: 44px; height: 44px; border: 0; padding: 0; cursor: pointer; }
+  #layerList { gap: 6px; }
+  #layerList button { max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
+  @media (max-width: 700px) {
+    #props textarea { width: 170px; }
+  }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <filter id="rough"><feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="4"/><feDisplacementMap in="SourceGraphic" scale="3.2"/></filter>
+  <filter id="rough-big"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="9"/><feDisplacementMap in="SourceGraphic" scale="6"/></filter>
+</svg>
+<header>
+  <h1>Malaking <span>Edits</span> To-its</h1>
+  <nav class="tabs" aria-label="Mode">
+    <a class="tab" href="./">Photo</a>
+    <a class="tab active" href="layers.html" aria-current="page">Layers</a>
+  </nav>
+  <button id="newBtn" style="display:none">New<span class="hide-sm"> image</span></button>
+</header>
+
+<main>
+  <input id="file" type="file" accept="image/*" hidden>
+  <section id="editor" class="empty">
+    <div class="toolbar">
+      <div class="group">
+        <button id="toolSelect" class="active" title="Move, resize and edit layers (V)">Select</button>
+        <button id="toolLift" title="Drag a box around something to make it a layer (L)">Lift</button>
+        <button id="toolText" title="Add text or find the text in the image (T)">Text</button>
+      </div>
+      <div class="sep"></div>
+      <div class="group">
+        <button id="zoomOut" title="Zoom out">−</button>
+        <button id="zoomFit" title="Fit to screen">Fit</button>
+        <button id="zoomIn" title="Zoom in">+</button>
+      </div>
+      <div class="sep"></div>
+      <div class="group">
+        <button id="undo" disabled title="Undo (Ctrl+Z)">Undo</button>
+        <button id="redo" disabled title="Redo (Ctrl+Y)">Redo</button>
+        <button id="listBtn" title="Show all layers">Layers (0)</button>
+      </div>
+    </div>
+
+    <div class="toolbar opts" id="liftOpts">
+      <div class="group">
+        <span class="bglabel">Cut</span>
+        <button class="pill active" data-cut="box" title="Take the whole box">Box</button>
+        <button class="pill" data-cut="color" title="Drop the colors around the edges of the box">Remove surrounding color</button>
+        <button class="pill" data-cut="ai" title="Let the AI cut out the main object in the box">AI cut-out</button>
+      </div>
+      <label id="tolWrap" style="display:none">Tolerance <input id="tol" type="range" min="2" max="60" value="18"></label>
+      <div class="sep"></div>
+      <div class="group">
+        <span class="bglabel">Leave behind</span>
+        <button class="pill active" data-leave="fill" title="Fill the spot with the surrounding colors">Filled spot</button>
+        <button class="pill" data-leave="empty" title="Leave a transparent hole">Empty</button>
+        <button class="pill" data-leave="copy" title="Keep the original where it was">Copy</button>
+      </div>
+      <span class="hint">→ Drag a box around the logo, QR code or shape. It becomes its own layer you can move.</span>
+    </div>
+
+    <div class="toolbar opts" id="textOpts">
+      <div class="group">
+        <button id="addText">+ Add text</button>
+        <button id="findText" title="Read the words in the image">Find text in image</button>
+        <button id="convertAll" style="display:none">Make all editable</button>
+      </div>
+      <span class="hint" id="textHint">→ Find text marks every line it can read. Tap a marked line to turn it into editable text.</span>
+    </div>
+
+    <div class="toolbar opts" id="props">
+      <div class="group" id="textProps">
+        <textarea id="pText" rows="1" aria-label="Text"></textarea>
+        <select id="pFont" aria-label="Font">
+          <option>Montserrat</option><option>Poppins</option><option>Archivo Black</option><option>Anton</option>
+          <option>Bebas Neue</option><option>Oswald</option><option>Roboto</option><option>Playfair Display</option>
+          <option>Pacifico</option><option>Dancing Script</option><option>Patrick Hand</option>
+        </select>
+        <label>Size <input id="pSize" type="number" min="6" max="600"></label>
+        <span class="colorchip" title="Text color"><input type="color" id="pColor" aria-label="Text color"></span>
+        <button class="pill" id="pBold" title="Bold">B</button>
+        <span class="bglabel">Outline</span>
+        <span class="colorchip" title="Outline color"><input type="color" id="pStrokeColor" aria-label="Outline color"></span>
+        <input id="pStroke" type="range" min="0" max="20" value="0" aria-label="Outline width" style="width:80px">
+        <button class="pill" data-align="left" title="Align left">Left</button>
+        <button class="pill" data-align="center" title="Align center">Center</button>
+        <button class="pill" data-align="right" title="Align right">Right</button>
+      </div>
+      <div class="sep"></div>
+      <div class="group">
+        <button class="pill" id="pForward" title="Bring forward (])">Forward</button>
+        <button class="pill" id="pBack" title="Send backward ([)">Backward</button>
+        <button class="pill" id="pDup" title="Duplicate">Duplicate</button>
+        <button class="pill" id="pDelete" title="Delete (Del)">Delete</button>
+      </div>
+    </div>
+
+    <div class="toolbar opts" id="listPanel">
+      <div class="group" id="layerList"></div>
+    </div>
+
+    <label id="drop" for="file">
+      <svg width="120" height="92" viewBox="0 0 120 92" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="filter:url(#rough)" aria-hidden="true">
+        <rect x="6" y="8" width="108" height="78" rx="6"/>
+        <path d="M14 76 L44 44 L62 62 L78 48 L106 76"/>
+        <circle cx="86" cy="28" r="9"/>
+      </svg>
+      <div class="big">Drop a poster here</div>
+      <p>or tap to pick one. Lift the logo, QR code or shapes into layers, and turn text into editable text.</p>
+    </label>
+
+    <div id="stage" class="mode-select">
+      <div id="wrap">
+        <span class="tape tl"></span><span class="tape br"></span>
+        <canvas id="baseView"></canvas>
+        <div id="band"></div>
+      </div>
+    </div>
+
+    <div class="bottombar">
+      <div class="group">
+        <span class="info" id="info"></span>
+      </div>
+      <div class="group">
+        <button id="shareBtn" style="display:none"><span class="hide-sm">Share / </span>Save to Photos</button>
+        <button id="downloadBtn" class="primary">Download<span class="hide-sm"> PNG</span></button>
+      </div>
+    </div>
+  </section>
+</main>
+<footer>© OV Apps 2026</footer>
+
+<div id="toast"></div>
+<div id="busy"><div class="card">
+  <div id="busyText">Working…</div>
+  <div class="bar"><div id="busyBar"></div></div>
+  <small id="busySub"></small>
+</div></div>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const stage = $("stage"), wrap = $("wrap"), baseView = $("baseView"), band = $("band");
+
+// ---------- State ----------
+// base: the flat image (replaced, never mutated, so undo snapshots can share it)
+// layers: bottom → top. image: {type, canvas, x, y, scale}  text: {type, text, font, size, color, bold, stroke, strokeColor, align, x, y, canvas}
+let base = null, layers = [], selected = null, fileBase = "poster";
+let tool = "select", zoom = 1, ocrLines = [];
+const lift = { cut: "box", leave: "fill" };
+const undoStack = [], redoStack = [];
+let uid = 1;
+
+function toast(msg) {
+  const t = $("toast"); t.textContent = msg; t.style.opacity = 1;
+  clearTimeout(toast.t); toast.t = setTimeout(() => (t.style.opacity = 0), 2200);
+}
+function showBusy(on, text = "Working…") {
+  $("busy").style.display = on ? "flex" : "none";
+  $("busyText").textContent = text; $("busyBar").style.width = "0"; $("busySub").textContent = "";
+}
+function progress(frac, sub = "") { $("busyBar").style.width = Math.round(frac * 100) + "%"; $("busySub").textContent = sub; }
+function makeCanvas(w, h) { const c = document.createElement("canvas"); c.width = Math.max(1, w); c.height = Math.max(1, h); return c; }
+function copyCanvas(src) { const c = makeCanvas(src.width, src.height); c.getContext("2d").drawImage(src, 0, 0); return c; }
+function loadImage(src) { return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; }); }
+async function loadFile(file) { const u = URL.createObjectURL(file); try { return await loadImage(u); } finally { URL.revokeObjectURL(u); } }
+
+// ---------- Open an image ----------
+$("file").addEventListener("change", () => { if ($("file").files[0]) openFile($("file").files[0]); $("file").value = ""; });
+["dragenter", "dragover"].forEach((ev) => document.addEventListener(ev, (e) => { e.preventDefault(); $("drop").classList.add("over"); }));
+["dragleave", "drop"].forEach((ev) => document.addEventListener(ev, (e) => { e.preventDefault(); $("drop").classList.remove("over"); }));
+document.addEventListener("drop", (e) => { const f = e.dataTransfer.files[0]; if (f) openFile(f); });
+$("newBtn").onclick = () => $("file").click();
+
+async function openFile(file) {
+  if (!file.type.startsWith("image/")) { alert("Please choose an image file."); return; }
+  try {
+    const img = await loadFile(file);
+    base = makeCanvas(img.naturalWidth, img.naturalHeight);
+    base.getContext("2d").drawImage(img, 0, 0);
+    fileBase = file.name.replace(/\.[^.]+$/, "") || "poster";
+    layers = []; selected = null; ocrLines = []; undoStack.length = redoStack.length = 0;
+    $("editor").classList.remove("empty"); $("newBtn").style.display = "";
+    $("convertAll").style.display = "none";
+    stage.classList.remove("show-ocr");
+    zoom = 1; setTool("select"); render(); updateHistory();
+  } catch (err) { alert("Couldn't open that image: " + (err?.message || err)); }
+}
+
+// ---------- History ----------
+const cloneLayer = (L) => ({ ...L });
+const snap = () => ({ base, layers: layers.map(cloneLayer), sel: selected ? layers.indexOf(selected) : -1, done: ocrLines.map((l) => !!l.done) });
+function restore(s) {
+  base = s.base; layers = s.layers.map(cloneLayer); selected = layers[s.sel] || null;
+  ocrLines.forEach((l, i) => (l.done = s.done[i] ?? l.done));
+  $("convertAll").style.display = ocrLines.some((l) => !l.done) ? "" : "none";
+  render();
+}
+function pushUndo() { undoStack.push(snap()); if (undoStack.length > 30) undoStack.shift(); redoStack.length = 0; updateHistory(); }
+function undo() { if (!undoStack.length) return; redoStack.push(snap()); restore(undoStack.pop()); updateHistory(); }
+function redo() { if (!redoStack.length) return; undoStack.push(snap()); restore(redoStack.pop()); updateHistory(); }
+function updateHistory() { $("undo").disabled = !undoStack.length; $("redo").disabled = !redoStack.length; }
+$("undo").onclick = undo; $("redo").onclick = redo;
+
+// ---------- Tools ----------
+function setTool(t) {
+  tool = t;
+  for (const [id, name] of [["toolSelect", "select"], ["toolLift", "lift"], ["toolText", "text"]]) $(id).classList.toggle("active", name === t);
+  stage.classList.remove("mode-select", "mode-lift", "mode-text");
+  stage.classList.add("mode-" + t);
+  $("liftOpts").classList.toggle("show", t === "lift");
+  $("textOpts").classList.toggle("show", t === "text");
+  if (t === "lift") { select(null); }
+}
+$("toolSelect").onclick = () => setTool("select");
+$("toolLift").onclick = () => { setTool("lift"); toast("Drag a box around what you want to lift"); };
+$("toolText").onclick = () => setTool("text");
+document.querySelectorAll("[data-cut]").forEach((b) => b.onclick = () => {
+  lift.cut = b.dataset.cut;
+  document.querySelectorAll("[data-cut]").forEach((x) => x.classList.toggle("active", x === b));
+  $("tolWrap").style.display = lift.cut === "color" ? "" : "none";
+});
+document.querySelectorAll("[data-leave]").forEach((b) => b.onclick = () => {
+  lift.leave = b.dataset.leave;
+  document.querySelectorAll("[data-leave]").forEach((x) => x.classList.toggle("active", x === b));
+});
+
+// ---------- Rendering ----------
+function fitScale() {
+  const cs = getComputedStyle(stage);
+  const sw = stage.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+  const sh = stage.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+  return Math.max(0.02, Math.min(sw / base.width, sh / base.height, 1));
+}
+const S = () => fitScale() * zoom;
+// for pointer math: the poster's real on-screen scale right now
+const liveScale = () => wrap.getBoundingClientRect().width / base.width;
+function render() {
+  if (!base) return;
+  const s = S();
+  wrap.style.width = base.width * s + "px";
+  wrap.style.height = base.height * s + "px";
+  wrap.style.setProperty("--tw", Math.round(Math.max(26, Math.min(90, Math.min(base.width, base.height) * s * 0.22))) + "px");
+  if (baseView.width !== base.width || baseView.height !== base.height) { baseView.width = base.width; baseView.height = base.height; }
+  const bctx = baseView.getContext("2d");
+  bctx.clearRect(0, 0, base.width, base.height); bctx.drawImage(base, 0, 0);
+
+  wrap.querySelectorAll(".layer, .ocr-box").forEach((e) => e.remove());
+  layers.forEach((L, i) => {
+    const el = document.createElement("div");
+    el.className = "layer" + (L === selected ? " selected" : "");
+    const w = L.canvas.width * (L.scale || 1), h = L.canvas.height * (L.scale || 1);
+    Object.assign(el.style, { left: L.x * s + "px", top: L.y * s + "px", width: w * s + "px", height: h * s + "px", zIndex: 1 });
+    el.appendChild(L.canvas);
+    const hd = document.createElement("div"); hd.className = "handle"; el.appendChild(hd);
+    el.addEventListener("pointerdown", (e) => startDrag(e, L, e.target === hd ? "resize" : "move"));
+    wrap.appendChild(el);
+  });
+  ocrLines.forEach((line, i) => {
+    if (line.done) return;
+    const b = document.createElement("button");
+    b.className = "ocr-box"; b.title = "Make editable: " + line.text;
+    const { x0, y0, x1, y1 } = line.bbox;
+    Object.assign(b.style, { left: x0 * s - 3 + "px", top: y0 * s - 3 + "px", width: (x1 - x0) * s + 6 + "px", height: (y1 - y0) * s + 6 + "px" });
+    b.onclick = (e) => { e.stopPropagation(); convertLine(line); };
+    wrap.appendChild(b);
+  });
+  updateProps(); updateList();
+  $("info").textContent = `${base.width} × ${base.height} px · ${layers.length} layer${layers.length === 1 ? "" : "s"}`;
+}
+new ResizeObserver(() => base && render()).observe(stage);
+const setZoom = (z) => { zoom = Math.max(1, Math.min(8, z)); render(); };
+$("zoomIn").onclick = () => setZoom(zoom * 1.5);
+$("zoomOut").onclick = () => setZoom(zoom / 1.5);
+$("zoomFit").onclick = () => setZoom(1);
+
+// ---------- Selecting, moving, resizing ----------
+function select(L) { selected = L; render(); }
+wrap.addEventListener("pointerdown", (e) => {
+  if (tool === "lift") return startBand(e);
+  if (e.target === wrap || e.target === baseView) select(null);
+});
+function startDrag(e, L, kind) {
+  if (tool === "lift") return;
+  e.stopPropagation(); e.preventDefault();
+  if (selected !== L) select(L);
+  const s = liveScale(), sx = e.clientX, sy = e.clientY;
+  const start = { ...L, w: L.canvas.width * (L.scale || 1) };
+  let moved = false;
+  const el = e.currentTarget; el.setPointerCapture(e.pointerId);
+  const move = (ev) => {
+    const dx = (ev.clientX - sx) / s, dy = (ev.clientY - sy) / s;
+    if (!moved && Math.hypot(dx * s, dy * s) < 3) return;
+    if (!moved) { moved = true; pushUndo(); }
+    if (kind === "move") { L.x = start.x + dx; L.y = start.y + dy; }
+    else {
+      const k = Math.max(0.05, (start.w + dx) / start.w);
+      if (L.type === "image") L.scale = start.scale * k;
+      else { L.size = Math.max(6, Math.round(start.size * k)); renderText(L); }
+    }
+    positionLayer(el, L);
+  };
+  const up = () => { el.removeEventListener("pointermove", move); el.removeEventListener("pointerup", up); el.removeEventListener("pointercancel", up); if (moved) render(); };
+  el.addEventListener("pointermove", move); el.addEventListener("pointerup", up); el.addEventListener("pointercancel", up);
+}
+function positionLayer(el, L) {
+  const s = S(), w = L.canvas.width * (L.scale || 1), h = L.canvas.height * (L.scale || 1);
+  if (L.canvas.parentNode !== el) el.prepend(L.canvas);
+  Object.assign(el.style, { left: L.x * s + "px", top: L.y * s + "px", width: w * s + "px", height: h * s + "px" });
+  if (L === selected) updatePropsValues();
+}
+
+// ---------- Lift: drag a box ----------
+function startBand(e) {
+  e.preventDefault();
+  const r = wrap.getBoundingClientRect(), s = r.width / base.width;
+  const x0 = (e.clientX - r.left) / s, y0 = (e.clientY - r.top) / s;
+  wrap.setPointerCapture(e.pointerId);
+  let box = null;
+  const move = (ev) => {
+    const x1 = (ev.clientX - r.left) / s, y1 = (ev.clientY - r.top) / s;
+    box = {
+      x: Math.max(0, Math.round(Math.min(x0, x1))), y: Math.max(0, Math.round(Math.min(y0, y1))),
+    };
+    box.w = Math.round(Math.min(base.width, Math.max(x0, x1)) - box.x);
+    box.h = Math.round(Math.min(base.height, Math.max(y0, y1)) - box.y);
+    Object.assign(band.style, { display: "block", left: box.x * s + "px", top: box.y * s + "px", width: box.w * s + "px", height: box.h * s + "px" });
+  };
+  const up = () => {
+    wrap.removeEventListener("pointermove", move); wrap.removeEventListener("pointerup", up); wrap.removeEventListener("pointercancel", up);
+    band.style.display = "none";
+    if (box && box.w > 3 && box.h > 3) liftBox(box);
+  };
+  wrap.addEventListener("pointermove", move); wrap.addEventListener("pointerup", up); wrap.addEventListener("pointercancel", up);
+}
+
+async function liftBox(box) {
+  const crop = makeCanvas(box.w, box.h);
+  crop.getContext("2d").drawImage(base, -box.x, -box.y);
+  let piece = crop;
+  try {
+    if (lift.cut === "color") piece = colorCut(crop, +$("tol").value);
+    else if (lift.cut === "ai") piece = await aiCut(crop);
+  } catch (err) { console.error(err); alert("Couldn't cut that out: " + (err?.message || err)); return; }
+
+  pushUndo();
+  if (lift.leave !== "copy") {
+    const mask = maskFrom(piece, lift.cut === "box" ? 0 : 3);
+    base = lift.leave === "fill" ? fillHole(base, mask, box.x, box.y) : punchHole(base, mask, box.x, box.y);
+  }
+  const L = { id: uid++, type: "image", name: "Piece " + (layers.filter((l) => l.type === "image").length + 1), canvas: piece, x: box.x, y: box.y, scale: 1 };
+  layers.push(L);
+  setTool("select"); select(L);
+  toast("Lifted! Drag it to move, or pull the yellow corner to resize");
+}
+
+// Remove the colors that touch the edge of the box (flood fill from the border)
+function colorCut(src, tol) {
+  const w = src.width, h = src.height, out = copyCanvas(src), c = out.getContext("2d");
+  const img = c.getImageData(0, 0, w, h), d = img.data;
+  const samples = [];
+  const step = Math.max(1, Math.floor((2 * (w + h)) / 80));
+  for (let i = 0; i < w; i += step) samples.push(i, (h - 1) * w + i);
+  for (let j = 0; j < h; j += step) samples.push(j * w, j * w + w - 1);
+  const cols = samples.map((p) => [d[p * 4], d[p * 4 + 1], d[p * 4 + 2]]);
+  const lim = (tol / 100) * 441.7, lim2 = lim * lim;
+  const near = (i) => {
+    const r = d[i], g = d[i + 1], b = d[i + 2];
+    for (const [cr, cg, cb] of cols) { const dr = r - cr, dg = g - cg, db = b - cb; if (dr * dr + dg * dg + db * db <= lim2) return true; }
+    return false;
+  };
+  const seen = new Uint8Array(w * h), stack = new Int32Array(w * h); let sp = 0;
+  const seed = (p) => { if (!seen[p] && near(p * 4)) { seen[p] = 1; stack[sp++] = p; } };
+  for (let i = 0; i < w; i++) { seed(i); seed((h - 1) * w + i); }
+  for (let j = 0; j < h; j++) { seed(j * w); seed(j * w + w - 1); }
+  while (sp) {
+    const p = stack[--sp]; d[p * 4 + 3] = 0;
+    const x = p % w;
+    if (x > 0) seed(p - 1);
+    if (x < w - 1) seed(p + 1);
+    if (p >= w) seed(p - w);
+    if (p < w * (h - 1)) seed(p + w);
+  }
+  c.putImageData(img, 0, 0);
+  return out;
+}
+
+let bgRemoval = null;
+async function aiCut(src) {
+  showBusy(true, "Cutting it out…");
+  try {
+    bgRemoval ??= await import("https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/+esm");
+    const blob = await new Promise((r) => src.toBlob(r, "image/png"));
+    const res = await bgRemoval.removeBackground(blob, {
+      model: "isnet_fp16", output: { format: "image/png", quality: 1 },
+      progress: (key, cur, total) => {
+        if (key.startsWith("fetch")) { $("busyText").textContent = "Getting the AI ready…"; progress(cur / total, `${(cur / 1e6).toFixed(0)} / ${(total / 1e6).toFixed(0)} MB · first time only`); }
+        else { $("busyText").textContent = "Cutting it out…"; progress(total ? cur / total : 0.6); }
+      },
+    });
+    const img = await loadFile(res);
+    const out = makeCanvas(src.width, src.height);
+    out.getContext("2d").drawImage(img, 0, 0, src.width, src.height);
+    return out;
+  } finally { showBusy(false); }
+}
+
+// Mask of where the piece has pixels, grown by `grow` px so edges don't leave a halo
+function maskFrom(piece, grow) {
+  const m = makeCanvas(piece.width, piece.height), c = m.getContext("2d");
+  if (!grow) { c.fillRect(0, 0, m.width, m.height); return m; }
+  for (const [dx, dy] of [[0, 0], [grow, 0], [-grow, 0], [0, grow], [0, -grow], [grow, grow], [-grow, -grow], [grow, -grow], [-grow, grow]]) c.drawImage(piece, dx, dy);
+  return m;
+}
+function punchHole(src, mask, x, y) {
+  const out = copyCanvas(src), c = out.getContext("2d");
+  c.globalCompositeOperation = "destination-out"; c.drawImage(mask, x, y);
+  return out;
+}
+// The layered fill can leave the middle slightly see-through; make it solid
+function makeOpaque(c) {
+  const x = c.getContext("2d"), img = x.getImageData(0, 0, c.width, c.height), d = img.data;
+  for (let i = 3; i < d.length; i += 4) d[i] = 255;
+  x.putImageData(img, 0, 0);
+}
+// Fill the masked spot with the surrounding colors (shrink step by step, then fill holes from the smaller levels)
+function fillHole(src, mask, x, y) {
+  const m = Math.round(Math.max(mask.width, mask.height) * 0.6) + 12;
+  const rx = Math.max(0, x - m), ry = Math.max(0, y - m);
+  const rw = Math.min(src.width, x + mask.width + m) - rx, rh = Math.min(src.height, y + mask.height + m) - ry;
+  const levels = [makeCanvas(rw, rh)];
+  const l0 = levels[0].getContext("2d");
+  l0.drawImage(src, -rx, -ry);
+  l0.globalCompositeOperation = "destination-out";
+  l0.drawImage(mask, x - rx, y - ry);
+  while (Math.max(levels.at(-1).width, levels.at(-1).height) > 2) {
+    const p = levels.at(-1), c = makeCanvas(Math.ceil(p.width / 2), Math.ceil(p.height / 2));
+    const cx = c.getContext("2d"); cx.imageSmoothingQuality = "high"; cx.drawImage(p, 0, 0, c.width, c.height);
+    levels.push(c);
+  }
+  for (let i = levels.length - 2; i >= 0; i--) {
+    const cx = levels[i].getContext("2d");
+    cx.globalCompositeOperation = "destination-over"; cx.imageSmoothingQuality = "high";
+    cx.drawImage(levels[i + 1], 0, 0, levels[i].width, levels[i].height);
+  }
+  makeOpaque(levels[0]);
+  const patch = makeCanvas(rw, rh), pc = patch.getContext("2d");
+  pc.drawImage(mask, x - rx, y - ry);
+  pc.globalCompositeOperation = "source-in";
+  pc.drawImage(levels[0], 0, 0);
+  const out = copyCanvas(src);
+  out.getContext("2d").drawImage(patch, rx, ry);
+  return out;
+}
+
+// ---------- Text layers ----------
+const measureCtx = makeCanvas(1, 1).getContext("2d");
+function fontString(L) { return `${L.bold ? 700 : 400} ${L.size}px "${L.font}"`; }
+function renderText(L) {
+  const lines = (L.text || " ").split("\n");
+  measureCtx.font = fontString(L);
+  const widths = lines.map((t) => measureCtx.measureText(t).width);
+  const lh = L.size * 1.18, pad = Math.ceil(L.stroke + L.size * 0.12);
+  const W = Math.ceil(Math.max(...widths, 1) + pad * 2), H = Math.ceil(lh * lines.length + pad * 2);
+  const c = makeCanvas(W, H);
+  const x = c.getContext("2d");
+  x.clearRect(0, 0, W, H);
+  x.font = fontString(L); x.textBaseline = "middle"; x.lineJoin = "round";
+  lines.forEach((t, i) => {
+    const tx = L.align === "left" ? pad : L.align === "right" ? W - pad - widths[i] : (W - widths[i]) / 2;
+    const ty = pad + lh * (i + 0.5);
+    if (L.stroke > 0) { x.lineWidth = L.stroke * 2; x.strokeStyle = L.strokeColor; x.strokeText(t, tx, ty); }
+    x.fillStyle = L.color; x.fillText(t, tx, ty);
+  });
+  L.canvas = c;
+}
+// Re-draw once the web font has arrived (keeps the layer's center in place)
+async function ensureFont(L) {
+  try { await document.fonts.load(fontString(L), L.text); } catch {}
+  const cx = L.x + L.canvas.width / 2, cy = L.y + L.canvas.height / 2;
+  renderText(L);
+  L.x = cx - L.canvas.width / 2; L.y = cy - L.canvas.height / 2;
+  render();
+}
+function newText(props) {
+  const L = { id: uid++, type: "text", text: "Your text", font: "Montserrat", size: Math.round(base.width / 14), color: "#1e3f9e", bold: true, stroke: 0, strokeColor: "#ffffff", align: "center", x: 0, y: 0, canvas: null, ...props };
+  renderText(L);
+  return L;
+}
+$("addText").onclick = () => {
+  if (!base) return;
+  pushUndo();
+  const L = newText({});
+  L.x = (base.width - L.canvas.width) / 2; L.y = (base.height - L.canvas.height) / 2;
+  layers.push(L); select(L); ensureFont(L);
+  setTimeout(() => { $("pText").focus(); $("pText").select(); }, 50);
+};
+
+// ---------- Find text (OCR) ----------
+let ocrWorker = null, ocrPass = 1;
+// High-contrast grayscale copy: easier for the text reader (works in every browser)
+function grayscale(src) {
+  const c = copyCanvas(src), x = c.getContext("2d"), img = x.getImageData(0, 0, c.width, c.height), d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const l = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+    const v = Math.max(0, Math.min(255, (l - 128) * 1.4 + 128));
+    d[i] = d[i + 1] = d[i + 2] = v;
+  }
+  x.putImageData(img, 0, 0);
+  return c;
+}
+const linesOf = (data) => (data.lines || (data.blocks || []).flatMap((b) => b.paragraphs.flatMap((p) => p.lines)))
+  .map((l) => ({ text: l.text.trim(), bbox: l.bbox, conf: l.confidence }));
+// Keep lines that look like real words; when both passes found the same spot, keep the more confident one
+function mergeLines(all) {
+  const wordy = (t) => {
+    const alnum = (t.match(/[A-Za-z0-9]/g) || []).length;
+    return alnum >= 3 && alnum / t.replace(/\s/g, "").length >= 0.6 && /[A-Za-z]{2,}|\d{2,}/.test(t);
+  };
+  const area = (b) => Math.max(0, b.x1 - b.x0) * Math.max(0, b.y1 - b.y0);
+  const overlap = (a, b) => {
+    const w = Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0), h = Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0);
+    return w > 0 && h > 0 ? (w * h) / Math.min(area(a), area(b)) : 0;
+  };
+  const kept = [];
+  for (const l of all.filter((l) => l.conf >= 25 && wordy(l.text)).sort((a, b) => b.conf - a.conf)) {
+    if (!kept.some((k) => overlap(k.bbox, l.bbox) > 0.5)) kept.push(l);
+  }
+  return kept.sort((a, b) => a.bbox.y0 - b.bbox.y0 || a.bbox.x0 - b.bbox.x0);
+}
+function loadScript(src) {
+  return new Promise((res, rej) => { const s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = () => rej(new Error("Couldn't load " + src)); document.head.appendChild(s); });
+}
+$("findText").onclick = async () => {
+  if (!base) return;
+  showBusy(true, "Getting the text reader ready…");
+  try {
+    if (!window.Tesseract) await loadScript("https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js");
+    ocrWorker ??= await Tesseract.createWorker("eng", 1, {
+      logger: (m) => {
+        if (m.status === "recognizing text") { $("busyText").textContent = `Reading the text… (${ocrPass} of 2)`; progress(m.progress); }
+        else if (typeof m.progress === "number") { $("busyText").textContent = "Getting the text reader ready…"; progress(m.progress, "first time only"); }
+      },
+    });
+    // Two passes on a high-contrast grayscale copy: normal layout, then "scattered text" mode
+    const gray = grayscale(base);
+    ocrPass = 1;
+    await ocrWorker.setParameters({ tessedit_pageseg_mode: "3" });
+    const r1 = await ocrWorker.recognize(gray);
+    ocrPass = 2;
+    await ocrWorker.setParameters({ tessedit_pageseg_mode: "11" });
+    const r2 = await ocrWorker.recognize(gray);
+    ocrLines = mergeLines([...linesOf(r1.data), ...linesOf(r2.data)]);
+    stage.classList.add("show-ocr");
+    $("convertAll").style.display = ocrLines.length ? "" : "none";
+    render();
+    toast(ocrLines.length ? `Found ${ocrLines.length} line${ocrLines.length === 1 ? "" : "s"}. Tap one to make it editable` : "Couldn't read any text in this image");
+  } catch (err) {
+    console.error(err); alert("The text reader had a problem: " + (err?.message || err));
+  } finally { showBusy(false); }
+};
+
+// Guess the text color: pixels in the box that differ most from the box's edge color
+function guessColors(bx) {
+  const w = bx.x1 - bx.x0, h = bx.y1 - bx.y0;
+  const d = base.getContext("2d").getImageData(bx.x0, bx.y0, Math.max(1, w), Math.max(1, h)).data;
+  let br = 0, bg = 0, bb = 0, n = 0;
+  for (let i = 0; i < w; i++) for (const j of [0, h - 1]) { const k = (j * w + i) * 4; br += d[k]; bg += d[k + 1]; bb += d[k + 2]; n++; }
+  br /= n; bg /= n; bb /= n;
+  let tr = 0, tg = 0, tb = 0, tn = 0;
+  for (let k = 0; k < d.length; k += 4) {
+    const dist = Math.hypot(d[k] - br, d[k + 1] - bg, d[k + 2] - bb);
+    if (dist > 110) { tr += d[k]; tg += d[k + 1]; tb += d[k + 2]; tn++; }
+  }
+  const hex = (r, g, b) => "#" + [r, g, b].map((v) => Math.round(v).toString(16).padStart(2, "0")).join("");
+  return { text: tn ? hex(tr / tn, tg / tn, tb / tn) : (br + bg + bb > 380 ? "#111111" : "#ffffff") };
+}
+function lineToLayer(line) {
+  const { x0, y0, x1, y1 } = line.bbox, bw = x1 - x0, bh = y1 - y0;
+  const caps = line.text === line.text.toUpperCase() && !/[gjpqy,]/.test(line.text);
+  const L = newText({ text: line.text, color: guessColors(line.bbox).text, size: Math.round(bh / (caps ? 0.72 : 0.95)), bold: true, align: "center" });
+  // match the found line's width, staying close to the height-based size
+  const inner = L.canvas.width - 2 * Math.ceil(L.stroke + L.size * 0.12);
+  const target = L.size * (bw / Math.max(1, inner));
+  L.size = Math.round(Math.min(L.size * 1.25, Math.max(L.size * 0.75, target)));
+  renderText(L);
+  L.x = (x0 + x1) / 2 - L.canvas.width / 2; L.y = (y0 + y1) / 2 - L.canvas.height / 2;
+  L.name = line.text;
+  return L;
+}
+function eraseLine(src, line) {
+  const g = 3, { x0, y0, x1, y1 } = line.bbox;
+  const mask = makeCanvas(x1 - x0 + 2 * g, y1 - y0 + 2 * g);
+  mask.getContext("2d").fillRect(0, 0, mask.width, mask.height);
+  return fillHole(src, mask, x0 - g, y0 - g);
+}
+function convertLine(line) {
+  pushUndo();
+  base = eraseLine(base, line);
+  line.done = true;
+  const L = lineToLayer(line);
+  layers.push(L);
+  if (!ocrLines.some((l) => !l.done)) $("convertAll").style.display = "none";
+  select(L); ensureFont(L);
+  toast("Now editable. Change the words in the box at the top");
+}
+$("convertAll").onclick = () => {
+  const todo = ocrLines.filter((l) => !l.done);
+  if (!todo.length) return;
+  pushUndo();
+  const made = [];
+  for (const line of todo) { base = eraseLine(base, line); line.done = true; const L = lineToLayer(line); layers.push(L); made.push(L); }
+  $("convertAll").style.display = "none";
+  select(made.at(-1)); made.forEach(ensureFont);
+  toast(`${made.length} lines are now editable text`);
+};
+
+// ---------- Properties of the selected layer ----------
+function updateProps() {
+  $("props").classList.toggle("show", !!selected);
+  if (!selected) return;
+  $("textProps").style.display = selected.type === "text" ? "" : "none";
+  updatePropsValues();
+}
+function updatePropsValues() {
+  const L = selected;
+  if (!L || L.type !== "text") return;
+  if (document.activeElement !== $("pText")) $("pText").value = L.text;
+  $("pFont").value = L.font; $("pSize").value = L.size; $("pColor").value = L.color;
+  $("pStrokeColor").value = L.strokeColor; $("pStroke").value = L.stroke;
+  $("pBold").classList.toggle("active", L.bold);
+  document.querySelectorAll("[data-align]").forEach((b) => b.classList.toggle("active", b.dataset.align === L.align));
+}
+// Change a text property: one undo step per editing burst
+let editBurst = null;
+function editText(fn) {
+  const L = selected; if (!L || L.type !== "text") return;
+  if (editBurst !== L) { pushUndo(); editBurst = L; }
+  clearTimeout(editText.t); editText.t = setTimeout(() => (editBurst = null), 1200);
+  const cx = L.x + L.canvas.width / 2, cy = L.y + L.canvas.height / 2;
+  fn(L);
+  L.name = L.text.split("\n")[0];
+  renderText(L);
+  L.x = cx - L.canvas.width / 2; L.y = cy - L.canvas.height / 2;
+  render(); ensureFontQuiet(L);
+}
+async function ensureFontQuiet(L) {
+  const before = document.fonts.check(fontString(L), L.text);
+  if (before) return;
+  await ensureFont(L);
+}
+$("pText").addEventListener("input", () => editText((L) => (L.text = $("pText").value)));
+$("pFont").addEventListener("change", () => editText((L) => (L.font = $("pFont").value)));
+$("pSize").addEventListener("input", () => { const v = +$("pSize").value; if (v >= 6) editText((L) => (L.size = v)); });
+$("pColor").addEventListener("input", () => editText((L) => (L.color = $("pColor").value)));
+$("pStrokeColor").addEventListener("input", () => editText((L) => (L.strokeColor = $("pStrokeColor").value)));
+$("pStroke").addEventListener("input", () => editText((L) => (L.stroke = +$("pStroke").value)));
+$("pBold").onclick = () => editText((L) => (L.bold = !L.bold));
+document.querySelectorAll("[data-align]").forEach((b) => b.onclick = () => editText((L) => (L.align = b.dataset.align)));
+
+function moveLayer(dir) {
+  const i = layers.indexOf(selected), j = i + dir;
+  if (i < 0 || j < 0 || j >= layers.length) return;
+  pushUndo(); [layers[i], layers[j]] = [layers[j], layers[i]]; render();
+}
+$("pForward").onclick = () => moveLayer(1);
+$("pBack").onclick = () => moveLayer(-1);
+$("pDup").onclick = () => {
+  if (!selected) return;
+  pushUndo();
+  const L = { ...selected, id: uid++, x: selected.x + 20, y: selected.y + 20 };
+  L.canvas = copyCanvas(selected.canvas);
+  layers.push(L); select(L);
+};
+function deleteSelected() {
+  if (!selected) return;
+  pushUndo(); layers = layers.filter((l) => l !== selected); selected = null; render();
+}
+$("pDelete").onclick = deleteSelected;
+
+// ---------- Layer list ----------
+$("listBtn").onclick = () => { $("listPanel").classList.toggle("show"); $("listBtn").classList.toggle("active"); };
+function updateList() {
+  $("listBtn").textContent = `Layers (${layers.length})`;
+  const box = $("layerList"); box.innerHTML = "";
+  if (!layers.length) { box.innerHTML = '<span class="bglabel">No layers yet. Use Lift or Text.</span>'; return; }
+  [...layers].reverse().forEach((L) => {
+    const b = document.createElement("button");
+    b.className = "pill" + (L === selected ? " active" : "");
+    b.textContent = L.type === "text" ? "T · " + (L.name || L.text) : L.name || "Piece";
+    b.onclick = () => { if (tool === "lift") setTool("select"); select(L); };
+    box.appendChild(b);
+  });
+}
+
+// ---------- Keyboard ----------
+document.addEventListener("keydown", (e) => {
+  if (!base) return;
+  const typing = ["TEXTAREA", "INPUT", "SELECT"].includes(e.target.tagName) && e.target.type !== "range";
+  const k = e.key.toLowerCase();
+  if ((e.ctrlKey || e.metaKey) && k === "z" && !e.shiftKey) { if (!typing) { e.preventDefault(); undo(); } return; }
+  if ((e.ctrlKey || e.metaKey) && (k === "y" || (k === "z" && e.shiftKey))) { if (!typing) { e.preventDefault(); redo(); } return; }
+  if (typing || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (k === "v") setTool("select");
+  else if (k === "l") setTool("lift");
+  else if (k === "t") setTool("text");
+  else if ((k === "delete" || k === "backspace") && selected) { e.preventDefault(); deleteSelected(); }
+  else if (k === "]" && selected) moveLayer(1);
+  else if (k === "[" && selected) moveLayer(-1);
+  else if (k.startsWith("arrow") && selected) {
+    e.preventDefault();
+    const step = e.shiftKey ? 10 : 1;
+    pushUndo();
+    if (k === "arrowleft") selected.x -= step; if (k === "arrowright") selected.x += step;
+    if (k === "arrowup") selected.y -= step; if (k === "arrowdown") selected.y += step;
+    render();
+  } else if (k === "escape") select(null);
+});
+
+// ---------- Export ----------
+function flatten() {
+  const out = makeCanvas(base.width, base.height), c = out.getContext("2d");
+  c.drawImage(base, 0, 0);
+  for (const L of layers) c.drawImage(L.canvas, L.x, L.y, L.canvas.width * (L.scale || 1), L.canvas.height * (L.scale || 1));
+  return out;
+}
+const outName = () => `${fileBase}-edited.png`;
+const getBlob = () => new Promise((r) => flatten().toBlob(r, "image/png"));
+$("downloadBtn").onclick = async () => {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(await getBlob()); a.download = outName();
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+};
+if (navigator.canShare && navigator.canShare({ files: [new File([""], "x.png", { type: "image/png" })] })) {
+  $("shareBtn").style.display = "";
+  $("shareBtn").onclick = async () => {
+    const file = new File([await getBlob()], outName(), { type: "image/png" });
+    try { await navigator.share({ files: [file] }); } catch (err) { if (err.name !== "AbortError") alert(err.message); }
+  };
+}
+</script>
+</body>
+</html>
