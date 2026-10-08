@@ -57,6 +57,7 @@
         <button id="redo" disabled title="Redo (Ctrl+Y)">Redo</button>
         <button id="compareBtn" title="Press and hold to see the original photo (hold C)">Hold to compare</button>
         <button id="expandBtn" title="Add space around the photo">Expand</button>
+        <button id="blurBtn" title="Blur faces or anything else">Blur</button>
       </div>
     </div>
 
@@ -88,6 +89,33 @@
       <span class="hint">→ The new space takes the Background chosen below. <b>1:1</b> + <b>White</b> makes a square photo with white space; <b>Original</b> extends the photo's own background.</span>
     </div>
 
+    <div class="toolbar" id="blurPanel">
+      <div class="group">
+        <span class="bglabel">Effect</span>
+        <button class="pill active" data-fx="blur">Blur</button>
+        <button class="pill" data-fx="pixel">Pixelate</button>
+        <button class="pill" data-fx="black">Black out</button>
+      </div>
+      <label>Strength <input id="fxStrength" type="range" min="5" max="100" value="40"></label>
+      <div class="sep"></div>
+      <div class="group">
+        <button id="findFaces" title="Find every face in the photo">Find faces</button>
+        <button id="applyFaces" class="primary" style="display:none">Blur faces</button>
+      </div>
+      <div class="sep"></div>
+      <div class="group">
+        <span class="bglabel">By hand</span>
+        <button id="toolBlurBrush" title="Paint the effect anywhere">Brush</button>
+        <button id="toolBlurBox" title="Drag a box over anything">Drag a box</button>
+      </div>
+      <div class="group">
+        <span class="bglabel">Shape</span>
+        <button class="pill active" data-fxshape="oval">Oval</button>
+        <button class="pill" data-fxshape="rect">Rectangle</button>
+      </div>
+      <span class="hint">→ Find faces marks every face. Tap a mark to skip that face, then apply. Or use Brush / Drag a box on anything. Restore brings back the original.</span>
+    </div>
+
     <label id="drop" for="file">
       <svg width="120" height="92" viewBox="0 0 120 92" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="filter:url(#rough)" aria-hidden="true">
         <rect x="6" y="8" width="108" height="78" rx="6"/>
@@ -103,6 +131,7 @@
         <span class="tape tl"></span><span class="tape br"></span>
         <canvas id="bgView"></canvas>
         <canvas id="canvas"></canvas>
+        <div id="fxBand"></div>
       </div>
     </div>
 
@@ -198,7 +227,7 @@ async function handleFile(file) {
     original?.remove();
     original = orig;
     wrap.appendChild(original);
-    cutout = null; removed = false;
+    cutout = null; removed = false; faces = [];
     canvas.width = w; canvas.height = h;
     ctx.clearRect(0, 0, w, h);
     ctx.drawImage(original, 0, 0);
@@ -275,6 +304,7 @@ function applyZoom(anchor) {
       width: canvas.width * s + "px", height: canvas.height * s + "px",
     });
   }
+  renderMarks();
   // keep the point under the anchor roughly in place
   if (anchor && prev.width) {
     const rx = (anchor.x - prev.left) / prev.width, ry = (anchor.y - prev.top) / prev.height;
@@ -298,12 +328,13 @@ stage.addEventListener("wheel", (e) => {
 // ---------- Tools ----------
 function setTool(t) {
   tool = t;
-  for (const [id, name] of [["toolErase", "erase"], ["toolMagic", "magic"], ["toolRestore", "restore"], ["toolMove", "move"]])
+  for (const [id, name] of [["toolErase", "erase"], ["toolMagic", "magic"], ["toolRestore", "restore"], ["toolMove", "move"], ["toolBlurBrush", "blurbrush"], ["toolBlurBox", "blurbox"]])
     $(id).classList.toggle("active", name === t);
   stage.className = "tool-" + t;
-  $("brushOpts").style.display = t === "erase" || t === "restore" ? "" : "none";
+  const brushy = t === "erase" || t === "restore" || t === "blurbrush";
+  $("brushOpts").style.display = brushy ? "" : "none";
   $("magicOpts").style.display = t === "magic" ? "" : "none";
-  if (t !== "erase" && t !== "restore") cursorEl.style.display = "none";
+  if (!brushy) cursorEl.style.display = "none";
 }
 $("toolErase").onclick = () => setTool("erase");
 $("toolMagic").onclick = () => setTool("magic");
@@ -580,13 +611,14 @@ function dab(x, y, r) {
     ctx.fillStyle = brushGradient(ctx, x, y, r);
     ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
-  } else if (tool === "restore") {
-    // Cut a round (soft-edged) piece of the original photo and lay it on top
+  } else if (tool === "restore" || tool === "blurbrush") {
+    // Cut a round (soft-edged) piece of the original photo (or the effect copy) and lay it on top
+    const from = tool === "restore" ? original : fxSource;
     const ox = Math.floor(x - r), oy = Math.floor(y - r), size = Math.ceil(r * 2) + 2;
     if (dabCanvas.width !== size) { dabCanvas.width = dabCanvas.height = size; }
     dabCtx.globalCompositeOperation = "copy";
     dabCtx.clearRect(0, 0, size, size);
-    dabCtx.drawImage(original, -ox, -oy);
+    dabCtx.drawImage(from, -ox, -oy);
     dabCtx.globalCompositeOperation = "destination-in";
     dabCtx.fillStyle = brushGradient(dabCtx, x - ox, y - oy, r);
     dabCtx.beginPath(); dabCtx.arc(x - ox, y - oy, r, 0, Math.PI * 2); dabCtx.fill();
@@ -628,6 +660,183 @@ function magicErase(px, py) {
   toast(count < 50 ? "Only a few pixels matched. Try a higher tolerance" : "Erased");
 }
 
+// ---------- Blur / pixelate / black out ----------
+const fx = { type: "blur", shape: "oval" };
+let faces = [];        // found faces in photo pixels: {x, y, w, h, on}
+let fxSource = null;   // full-photo copy with the effect, used by the Brush
+let boxStart = null;   // Drag-a-box start point
+const fxNames = { blur: "Blur", pixel: "Pixelate", black: "Black out" };
+const strength = () => +$("fxStrength").value;
+// effect size for Brush / box: in proportion to the whole photo
+const photoFxPx = () => Math.max(3, Math.round(Math.max(canvas.width, canvas.height) * strength() / 2500));
+// effect size for a face: in proportion to the face, so small faces get hidden too
+const faceFxPx = (f) => Math.max(3, Math.round(Math.max(f.w, f.h) * strength() / 160));
+
+function makeFx(src, px) {
+  const w = src.width, h = src.height;
+  if (fx.type === "black") { const c = makeCanvas(w, h), x = c.getContext("2d"); x.fillStyle = "#000"; x.fillRect(0, 0, w, h); return c; }
+  if (fx.type === "pixel") {
+    const small = makeCanvas(Math.max(1, Math.ceil(w / px)), Math.max(1, Math.ceil(h / px)));
+    const sx = small.getContext("2d"); sx.imageSmoothingQuality = "high"; sx.drawImage(src, 0, 0, small.width, small.height);
+    const out = makeCanvas(w, h), ox = out.getContext("2d");
+    ox.imageSmoothingEnabled = false;
+    ox.drawImage(small, 0, 0, small.width * px, small.height * px);
+    return out;
+  }
+  return blurred(src, px);
+}
+// Apply the effect inside an oval or rectangle (photo pixels)
+function applyFxRegion(r, px) {
+  const x0 = Math.max(0, Math.floor(r.x)), y0 = Math.max(0, Math.floor(r.y));
+  const x1 = Math.min(canvas.width, Math.ceil(r.x + r.w)), y1 = Math.min(canvas.height, Math.ceil(r.y + r.h));
+  const w = x1 - x0, h = y1 - y0;
+  if (w < 2 || h < 2) return;
+  const crop = makeCanvas(w, h);
+  crop.getContext("2d").drawImage(canvas, -x0, -y0);
+  const out = makeFx(crop, px);
+  if (fx.type === "blur" && fx.shape === "oval") {
+    // soft-edged oval so the blur blends into the photo
+    const m = makeCanvas(w, h), mc = m.getContext("2d");
+    mc.drawImage(out, 0, 0);
+    mc.globalCompositeOperation = "destination-in";
+    mc.translate(w / 2, h / 2); mc.scale(1, h / w);
+    const g = mc.createRadialGradient(0, 0, 0, 0, 0, w / 2);
+    g.addColorStop(0, "#000"); g.addColorStop(0.78, "#000"); g.addColorStop(1, "rgba(0,0,0,0)");
+    mc.fillStyle = g; mc.beginPath(); mc.arc(0, 0, w / 2, 0, Math.PI * 2); mc.fill();
+    ctx.drawImage(m, x0, y0);
+    return;
+  }
+  ctx.save();
+  ctx.beginPath();
+  if (fx.shape === "oval") ctx.ellipse(x0 + w / 2, y0 + h / 2, w / 2, h / 2, 0, 0, Math.PI * 2);
+  else ctx.rect(x0, y0, w, h);
+  ctx.clip();
+  ctx.clearRect(x0, y0, w, h);
+  ctx.drawImage(out, x0, y0);
+  ctx.restore();
+}
+
+// Face finder (Google MediaPipe, runs on this device)
+let faceDetector = null;
+const MP = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
+async function getFaceDetector() {
+  if (faceDetector) return faceDetector;
+  const vision = await import(MP + "/vision_bundle.mjs");
+  const files = await vision.FilesetResolver.forVisionTasks(MP + "/wasm");
+  faceDetector = await vision.FaceDetector.createFromOptions(files, {
+    baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite", delegate: "CPU" },
+    runningMode: "IMAGE", minDetectionConfidence: 0.5,
+  });
+  return faceDetector;
+}
+function detectIn(det, src, ox, oy, minScore) {
+  return det.detect(src).detections
+    .filter((d) => (d.categories?.[0]?.score ?? 1) >= minScore)
+    .map((d) => ({ x: d.boundingBox.originX + ox, y: d.boundingBox.originY + oy, w: d.boundingBox.width, h: d.boundingBox.height, score: d.categories?.[0]?.score ?? 1 }));
+}
+$("findFaces").onclick = async () => {
+  if (!original) return;
+  showBusy(true, "Getting the face finder ready…");
+  try {
+    const det = await getFaceDetector();
+    $("busyText").textContent = "Looking for faces…";
+    const W = original.width, H = original.height, m = Math.min(W, H);
+    const found = detectIn(det, original, 0, 0, 0.5);
+    // The finder is made for close-up faces, so also scan the photo in overlapping squares for small faces
+    const tile = makeCanvas(1, 1), tx = tile.getContext("2d");
+    const sizes = [m / 2, m / 4].filter((s) => s >= 160).map(Math.round);
+    const jobs = [];
+    for (const size of sizes) {
+      const step = Math.round(size * 0.6);
+      for (let y = 0; ; y += step) {
+        const ty = Math.min(y, H - size);
+        for (let x = 0; ; x += step) {
+          jobs.push({ size, x: Math.min(x, W - size), y: ty });
+          if (x + size >= W) break;
+        }
+        if (y + size >= H) break;
+      }
+    }
+    for (let i = 0; i < jobs.length; i++) {
+      const { size, x, y } = jobs[i];
+      if (tile.width !== size) { tile.width = tile.height = size; }
+      tx.clearRect(0, 0, size, size); tx.drawImage(original, -x, -y);
+      found.push(...detectIn(det, tile, x, y, 0.6));
+      if (i % 6 === 0) { progress((i + 1) / jobs.length); await new Promise((r) => setTimeout(r)); }
+    }
+    // the same face is often found several times: keep the most confident one
+    const overlap = (a, b) => {
+      const w = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x), h = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
+      return w > 0 && h > 0 ? (w * h) / Math.min(a.w * a.h, b.w * b.h) : 0;
+    };
+    const kept = [];
+    for (const f of found.sort((a, b) => b.score - a.score)) if (!kept.some((k) => overlap(k, f) > 0.35)) kept.push(f);
+    // grow each box to cover hair, forehead and chin
+    faces = kept.map((f) => ({ x: f.x - f.w * 0.12, y: f.y - f.h * 0.25, w: f.w * 1.24, h: f.h * 1.45, on: true }));
+    renderMarks();
+    toast(faces.length ? `Found ${faces.length} face${faces.length === 1 ? "" : "s"}. Tap a mark to skip a face` : "No faces found. Use Brush or Drag a box instead");
+  } catch (err) {
+    console.error(err); alert("The face finder had a problem: " + (err?.message || err));
+  } finally { showBusy(false); }
+};
+function progress(frac) { $("busyBar").style.width = Math.round(frac * 100) + "%"; }
+function renderMarks() {
+  wrap.querySelectorAll(".face-mark").forEach((e) => e.remove());
+  const on = faces.filter((f) => f.on).length;
+  $("applyFaces").style.display = faces.length ? "" : "none";
+  $("applyFaces").textContent = `${fxNames[fx.type]} ${on} face${on === 1 ? "" : "s"}`;
+  $("applyFaces").disabled = !on;
+  if (!faces.length || !original) return;
+  const s = fitScale() * zoom;
+  faces.forEach((f) => {
+    const el = document.createElement("div");
+    el.className = "face-mark" + (fx.shape === "rect" ? " rect" : "") + (f.on ? "" : " off");
+    el.setAttribute("role", "button"); el.tabIndex = 0;
+    el.title = f.on ? "Tap to skip this face" : "Tap to include this face";
+    Object.assign(el.style, { left: (doc.ox + f.x) * s + "px", top: (doc.oy + f.y) * s + "px", width: f.w * s + "px", height: f.h * s + "px" });
+    const toggle = (e) => { e.stopPropagation(); e.preventDefault(); f.on = !f.on; renderMarks(); };
+    el.addEventListener("pointerdown", (e) => e.stopPropagation());
+    el.addEventListener("click", toggle);
+    el.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") toggle(e); });
+    wrap.appendChild(el);
+  });
+}
+$("applyFaces").onclick = () => {
+  const todo = faces.filter((f) => f.on);
+  if (!todo.length) return;
+  pushUndo();
+  todo.forEach((f) => applyFxRegion(f, faceFxPx(f)));
+  faces = []; renderMarks(); afterEdit();
+  toast(`Done: ${todo.length} face${todo.length === 1 ? "" : "s"}. Undo if you want to try a different effect`);
+};
+document.querySelectorAll("[data-fx]").forEach((b) => b.onclick = () => {
+  fx.type = b.dataset.fx;
+  document.querySelectorAll("[data-fx]").forEach((x) => x.classList.toggle("active", x === b));
+  renderMarks();
+});
+document.querySelectorAll("[data-fxshape]").forEach((b) => b.onclick = () => {
+  fx.shape = b.dataset.fxshape;
+  document.querySelectorAll("[data-fxshape]").forEach((x) => x.classList.toggle("active", x === b));
+  renderMarks();
+});
+$("toolBlurBrush").onclick = () => setTool("blurbrush");
+$("toolBlurBox").onclick = () => setTool("blurbox");
+$("blurBtn").onclick = () => {
+  const open = $("blurPanel").classList.toggle("open");
+  $("blurBtn").classList.toggle("active", open);
+  if (!open && (tool === "blurbrush" || tool === "blurbox")) setTool("move");
+  applyZoom();
+};
+function showBand(a, b) {
+  const r = canvas.getBoundingClientRect(), wr = wrap.getBoundingClientRect(), k = r.width / canvas.width;
+  const x = Math.min(a.x, b.x), y = Math.min(a.y, b.y);
+  Object.assign($("fxBand").style, {
+    display: "block", borderRadius: fx.shape === "oval" ? "50%" : "4px",
+    left: r.left - wr.left + x * k + "px", top: r.top - wr.top + y * k + "px",
+    width: Math.abs(b.x - a.x) * k + "px", height: Math.abs(b.y - a.y) * k + "px",
+  });
+}
+
 // ---------- Pointer handling ----------
 let painting = false, last = null, panStart = null;
 const pointers = new Map();
@@ -653,7 +862,7 @@ function strokeTo(p) {
 }
 
 function moveCursor(e) {
-  if ((tool !== "erase" && tool !== "restore") || e.pointerType === "touch") { cursorEl.style.display = "none"; return; }
+  if ((tool !== "erase" && tool !== "restore" && tool !== "blurbrush") || e.pointerType === "touch") { cursorEl.style.display = "none"; return; }
   const s = +$("size").value;
   Object.assign(cursorEl.style, {
     display: "block", width: s + "px", height: s + "px",
@@ -678,6 +887,8 @@ wrap.addEventListener("pointerdown", (e) => {
   }
   if (e.button !== 0) return;
   if (tool === "magic") { const p = toImage(e); magicErase(p.x, p.y); return; }
+  if (tool === "blurbox") { boxStart = toImage(e); showBand(boxStart, boxStart); return; }
+  if (tool === "blurbrush") fxSource = makeFx(snapshot(), photoFxPx());
   pushUndo();
   painting = true; last = null;
   strokeTo(toImage(e));
@@ -699,6 +910,7 @@ wrap.addEventListener("pointermove", (e) => {
     stage.scrollTop = panStart.st - (e.clientY - panStart.y);
     return;
   }
+  if (boxStart) { showBand(boxStart, toImage(e)); return; }
   if (painting) {
     const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
     for (const ce of evs) strokeTo(toImage(ce));
@@ -706,6 +918,12 @@ wrap.addEventListener("pointermove", (e) => {
 });
 function endPointer(e) {
   pointers.delete(e.pointerId);
+  if (boxStart) {
+    const a = boxStart, b = toImage(e);
+    boxStart = null; $("fxBand").style.display = "none";
+    const r = { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(b.x - a.x), h: Math.abs(b.y - a.y) };
+    if (r.w > 4 && r.h > 4) { pushUndo(); applyFxRegion(r, photoFxPx()); afterEdit(); }
+  }
   if (pointers.size < 2) pinch = null;
   if (painting) afterEdit();
   painting = false; last = null; panStart = null;

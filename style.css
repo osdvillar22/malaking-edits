@@ -91,6 +91,18 @@
   .hint b { font-weight: 400; background: linear-gradient(transparent 60%, var(--marker) 60%); }
   #expandPanel { display: none; }
   #expandPanel.open { display: flex; }
+  #blurPanel { display: none; }
+  #blurPanel.open { display: flex; }
+  #stage.tool-blurbrush #wrap { cursor: none; }
+  #stage.tool-blurbox #wrap { cursor: crosshair; }
+  #fxBand { position: absolute; display: none; border: 2px dashed var(--pen); background: rgba(30,63,158,.1); pointer-events: none; z-index: 6; }
+  .face-mark {
+    position: absolute; z-index: 6; cursor: pointer; border-radius: 50%;
+    border: 3px solid var(--pen); background: rgba(255,226,94,.28); box-shadow: 0 0 0 2px #fff;
+  }
+  .face-mark.rect { border-radius: 6px; }
+  .face-mark.off { border: 2.5px dashed var(--pencil); background: transparent; box-shadow: none; }
+  .face-mark:focus-visible { outline: 2px dashed var(--pen); outline-offset: 3px; }
 
   /* ---------- pencil sliders ---------- */
   input[type=range] { -webkit-appearance: none; appearance: none; width: 110px; height: 24px; background: none; cursor: pointer; }
