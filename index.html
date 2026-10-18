@@ -58,6 +58,7 @@
         <button id="compareBtn" title="Press and hold to see the original photo (hold C)">Hold to compare</button>
         <button id="expandBtn" title="Add space around the photo">Expand</button>
         <button id="blurBtn" title="Blur faces or anything else">Blur</button>
+        <button id="cropBtn" title="Crop the photo">Crop</button>
       </div>
     </div>
 
@@ -87,6 +88,29 @@
       </div>
       <button class="pill" id="expandReset">Reset</button>
       <span class="hint">→ The new space takes the Background chosen below. <b>1:1</b> + <b>White</b> makes a square photo with white space; <b>Original</b> extends the photo's own background.</span>
+    </div>
+
+    <div class="toolbar" id="cropPanel">
+      <div class="group">
+        <span class="bglabel">Ratio</span>
+        <button class="pill active" data-crop="free">Free</button>
+        <button class="pill" data-crop="orig">Original</button>
+        <button class="pill" data-crop="1:1">1:1</button>
+        <button class="pill" data-crop="2:3">2:3</button>
+        <button class="pill" data-crop="3:2">3:2</button>
+        <button class="pill" data-crop="3:4">3:4</button>
+        <button class="pill" data-crop="4:3">4:3</button>
+        <button class="pill" data-crop="4:5">4:5</button>
+        <button class="pill" data-crop="5:4">5:4</button>
+        <button class="pill" data-crop="9:16">9:16</button>
+        <button class="pill" data-crop="16:9">16:9</button>
+      </div>
+      <span class="info" id="cropSize"></span>
+      <div class="group">
+        <button id="cropCancel">Cancel</button>
+        <button id="cropApply" class="primary">Crop</button>
+      </div>
+      <span class="hint">→ Drag the box to move it, pull a yellow corner to resize, or drag on the dark area to draw a new box. Enter crops, Esc cancels.</span>
     </div>
 
     <div class="toolbar" id="blurPanel">
@@ -227,6 +251,7 @@ async function handleFile(file) {
     original?.remove();
     original = orig;
     wrap.appendChild(original);
+    closeCrop();
     cutout = null; removed = false; faces = [];
     canvas.width = w; canvas.height = h;
     ctx.clearRect(0, 0, w, h);
@@ -305,6 +330,7 @@ function applyZoom(anchor) {
     });
   }
   renderMarks();
+  positionCrop();
   // keep the point under the anchor roughly in place
   if (anchor && prev.width) {
     const rx = (anchor.x - prev.left) / prev.width, ry = (anchor.y - prev.top) / prev.height;
@@ -467,6 +493,120 @@ function renderBackground() {
   else drawExtendedOriginal();
 }
 
+// ---------- Crop ----------
+let crop = null;         // crop box in photo pixels while the Crop panel is open
+let cropRatio = null;    // width / height, or null for Free
+function ratioOf(key) {
+  if (key === "free") return null;
+  if (key === "orig") return canvas.width / canvas.height;
+  const [a, b] = key.split(":").map(Number);
+  return a / b;
+}
+// largest box of that shape, centered on the photo
+function fitCrop(r) {
+  const W = canvas.width, H = canvas.height;
+  let w = W, h = H;
+  if (r) { if (W / H > r) w = H * r; else h = W / r; }
+  return { x: (W - w) / 2, y: (H - h) / 2, w, h };
+}
+function setOriginal(o) {
+  if (o === original) return;
+  original?.remove(); original = o; wrap.appendChild(o);
+}
+function openCrop() {
+  if (!original) return;
+  setTool("move");
+  cropRatio = null; crop = fitCrop(null);
+  document.querySelectorAll("[data-crop]").forEach((b) => b.classList.toggle("active", b.dataset.crop === "free"));
+  const layer = document.createElement("div"); layer.id = "cropLayer";
+  const box = document.createElement("div"); box.id = "cropBox";
+  for (const c of ["nw", "ne", "sw", "se"]) { const h = document.createElement("div"); h.className = "crop-h " + c; h.dataset.c = c; box.appendChild(h); }
+  layer.appendChild(box); wrap.appendChild(layer);
+  layer.addEventListener("pointerdown", cropPointerDown);
+  $("cropPanel").classList.add("open"); $("cropBtn").classList.add("active");
+  applyZoom();
+}
+function closeCrop() {
+  if (!crop && !$("cropLayer")) return;
+  crop = null; $("cropLayer")?.remove();
+  $("cropPanel").classList.remove("open"); $("cropBtn").classList.remove("active");
+  if (original) applyZoom();
+}
+function positionCrop() {
+  const layer = $("cropLayer");
+  if (!layer || !crop) return;
+  const s = fitScale() * zoom;
+  Object.assign(layer.style, { left: doc.ox * s + "px", top: doc.oy * s + "px", width: canvas.width * s + "px", height: canvas.height * s + "px" });
+  Object.assign($("cropBox").style, { left: crop.x * s + "px", top: crop.y * s + "px", width: crop.w * s + "px", height: crop.h * s + "px" });
+  // corner handles shrink when the box is small on screen
+  $("cropBox").style.setProperty("--hs", Math.round(Math.max(12, Math.min(24, Math.min(crop.w, crop.h) * s * 0.2))) + "px");
+  $("cropSize").textContent = `${Math.round(crop.w)} × ${Math.round(crop.h)} px`;
+}
+function cropPointerDown(e) {
+  e.stopPropagation(); e.preventDefault();
+  const layer = e.currentTarget;
+  layer.setPointerCapture(e.pointerId);
+  const W = canvas.width, H = canvas.height;
+  const k = W / canvas.getBoundingClientRect().width;
+  const at = (ev) => {
+    const r = canvas.getBoundingClientRect();
+    return { x: Math.max(0, Math.min(W, (ev.clientX - r.left) * k)), y: Math.max(0, Math.min(H, (ev.clientY - r.top) * k)) };
+  };
+  const p0 = at(e), start = { ...crop };
+  let mode, anchor;
+  if (e.target.dataset.c) {
+    // corner: the opposite corner stays put
+    mode = "corner";
+    const c = e.target.dataset.c;
+    anchor = { x: c.includes("w") ? crop.x + crop.w : crop.x, y: c.includes("n") ? crop.y + crop.h : crop.y };
+  } else if (e.target.id === "cropBox") mode = "move";
+  else { mode = "corner"; anchor = p0; }   // drag on the shaded area: draw a new box
+  const move = (ev) => {
+    const p = at(ev);
+    if (mode === "move") {
+      crop.x = Math.max(0, Math.min(W - crop.w, start.x + p.x - p0.x));
+      crop.y = Math.max(0, Math.min(H - crop.h, start.y + p.y - p0.y));
+    } else {
+      const sx = p.x >= anchor.x ? 1 : -1, sy = p.y >= anchor.y ? 1 : -1;
+      const maxW = sx > 0 ? W - anchor.x : anchor.x, maxH = sy > 0 ? H - anchor.y : anchor.y;
+      let w = Math.abs(p.x - anchor.x), h = Math.abs(p.y - anchor.y);
+      if (cropRatio) {
+        if (w / Math.max(h, 1e-6) > cropRatio) w = h * cropRatio; else h = w / cropRatio;
+        if (w > maxW) { w = maxW; h = w / cropRatio; }
+        if (h > maxH) { h = maxH; w = h * cropRatio; }
+        if (w < 16) { w = Math.min(16, maxW); h = w / cropRatio; }
+      } else { w = Math.max(16, Math.min(w, maxW)); h = Math.max(16, Math.min(h, maxH)); }
+      crop = { x: sx > 0 ? anchor.x : anchor.x - w, y: sy > 0 ? anchor.y : anchor.y - h, w, h };
+    }
+    positionCrop();
+  };
+  const up = () => { layer.removeEventListener("pointermove", move); layer.removeEventListener("pointerup", up); layer.removeEventListener("pointercancel", up); };
+  layer.addEventListener("pointermove", move); layer.addEventListener("pointerup", up); layer.addEventListener("pointercancel", up);
+}
+function applyCrop() {
+  if (!crop) return;
+  const x = Math.round(crop.x), y = Math.round(crop.y);
+  const w = Math.min(canvas.width - x, Math.round(crop.w)), h = Math.min(canvas.height - y, Math.round(crop.h));
+  if (x === 0 && y === 0 && w === canvas.width && h === canvas.height) { closeCrop(); return; }
+  pushUndo();
+  const nc = makeCanvas(w, h); nc.getContext("2d").drawImage(canvas, -x, -y);
+  const no = makeCanvas(w, h); no.className = "orig"; no.getContext("2d").drawImage(original, -x, -y);
+  setOriginal(no);
+  canvas.width = w; canvas.height = h; ctx.drawImage(nc, 0, 0);
+  cutout = null; faces = [];          // the saved AI result and face marks belong to the old size
+  closeCrop(); layout(); afterEdit();
+  toast(`Cropped to ${w} × ${h} px`);
+}
+$("cropBtn").onclick = () => (crop ? closeCrop() : openCrop());
+$("cropCancel").onclick = closeCrop;
+$("cropApply").onclick = applyCrop;
+document.querySelectorAll("[data-crop]").forEach((b) => b.onclick = () => {
+  cropRatio = ratioOf(b.dataset.crop);
+  document.querySelectorAll("[data-crop]").forEach((x) => x.classList.toggle("active", x === b));
+  if (cropRatio) crop = fitCrop(cropRatio);
+  positionCrop();
+});
+
 // ---------- Expand ----------
 function layout() {
   const w = canvas.width, h = canvas.height;
@@ -558,8 +698,15 @@ function snapshot() {
   c.getContext("2d").drawImage(canvas, 0, 0);
   return c;
 }
-function restoreFrom(s) { ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.drawImage(s.c, 0, 0); removed = s.removed; }
-const state = () => ({ c: snapshot(), removed });
+function restoreFrom(s) {
+  closeCrop();
+  const resized = s.c.width !== canvas.width || s.c.height !== canvas.height;
+  if (s.orig) setOriginal(s.orig);
+  if (resized) { canvas.width = s.c.width; canvas.height = s.c.height; } else ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(s.c, 0, 0); removed = s.removed;
+  if (resized) { cutout = null; faces = []; layout(); }
+}
+const state = () => ({ c: snapshot(), removed, orig: original });
 function pushUndo() {
   undoStack.push(state());
   if (undoStack.length > MAX_HISTORY) undoStack.shift();
@@ -580,6 +727,8 @@ $("undo").onclick = undo; $("redo").onclick = redo;
 document.addEventListener("keydown", (e) => {
   if (!original || e.target.tagName === "INPUT" && e.target.type !== "range") return;
   const k = e.key.toLowerCase();
+  if (crop && k === "enter") { e.preventDefault(); applyCrop(); return; }
+  if (crop && k === "escape") { closeCrop(); return; }
   if ((e.ctrlKey || e.metaKey) && k === "z" && !e.shiftKey) { e.preventDefault(); undo(); }
   else if ((e.ctrlKey || e.metaKey) && (k === "y" || (k === "z" && e.shiftKey))) { e.preventDefault(); redo(); }
   else if (e.ctrlKey || e.metaKey || e.altKey) return;
