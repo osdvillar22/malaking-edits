@@ -3,180 +3,174 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-<title>Layers · Malaking Edits To-its</title>
+<title>Layers · Malaking Edits</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&family=Rock+Salt&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <!-- Fonts offered for text layers -->
-<link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo+Black&family=Bebas+Neue&family=Dancing+Script:wght@700&family=Montserrat:wght@400;700;900&family=Oswald:wght@400;700&family=Pacifico&family=Playfair+Display:wght@400;700&family=Poppins:wght@400;700;900&family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo+Black&family=Bebas+Neue&family=Dancing+Script:wght@700&family=Montserrat:wght@400;700;900&family=Oswald:wght@400;700&family=Pacifico&family=Patrick+Hand&family=Playfair+Display:wght@400;700&family=Poppins:wght@400;700;900&family=Roboto:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 <style>
-  /* Layers page additions (base look comes from style.css) */
-  #wrap { box-shadow: 1px 2px 0 rgba(0,0,0,.06), 0 10px 22px -6px rgba(40,40,60,.28); touch-action: pan-x pan-y; }
+  /* Layers page additions (the blueprint look comes from style.css) */
+  #wrap { touch-action: pan-x pan-y; }
   #stage.mode-lift #wrap { touch-action: none; cursor: crosshair; }
   #baseView { display: block; width: 100%; height: 100%; }
   .layer { position: absolute; touch-action: none; cursor: move; }
   .layer canvas { display: block; width: 100%; height: 100%; pointer-events: none; }
-  .layer.selected { outline: 2px dashed var(--pen); outline-offset: 2px; }
+  .layer.selected { outline: 1px dashed #fff; outline-offset: 3px; box-shadow: 0 0 0 1px rgba(27,71,171,.6); }
   #stage.mode-lift .layer { pointer-events: none; }
-  .handle {
-    position: absolute; right: -13px; bottom: -13px; width: 24px; height: 24px; display: none;
-    background: var(--marker); border: 2px solid var(--ink); border-radius: 50% 44% 53% 47%;
-    cursor: nwse-resize; touch-action: none;
-  }
+  .handle { position: absolute; right: -12px; bottom: -12px; width: 20px; height: 20px; display: none; background: #fff; border: 2px solid var(--deep); cursor: nwse-resize; touch-action: none; }
   .layer.selected .handle { display: block; }
-  #band { position: absolute; display: none; border: 2px dashed var(--pen); background: rgba(30,63,158,.08); pointer-events: none; z-index: 6; }
-  .ocr-box {
-    position: absolute; border: 2px dashed var(--pen); background: rgba(255,226,94,.18); z-index: 5;
-    cursor: pointer; display: none; padding: 0; min-height: 0;
-  }
-  .ocr-box::before { display: none; }
-  .ocr-box:hover { background: rgba(255,226,94,.45); transform: none !important; }
+  #band { position: absolute; display: none; border: 2px dashed #fff; background: rgba(255,255,255,.12); pointer-events: none; z-index: 6; }
+  .ocr-box { position: absolute; border: 1px dashed #fff; background: rgba(255,216,74,.22); z-index: 5; cursor: pointer; display: none; padding: 0; min-height: 0; }
+  .ocr-box:hover { background: rgba(255,216,74,.5); }
   #stage.mode-text.show-ocr .ocr-box { display: block; }
   .opts { display: none; }
-  .opts.show { display: flex; }
-  #props textarea {
-    font: 18px/1.2 var(--hand); color: var(--ink); width: 220px; height: 40px; resize: vertical;
-    background: #fff; border: 2px solid var(--ink); border-radius: 10px 14px 9px 12px; padding: 6px 8px;
+  .opts.show { display: block; }
+  #props textarea, #props select, #props input[type=number] {
+    font: 15px var(--body); color: #fff; background: rgba(14,40,110,.35); border: 1px solid rgba(255,255,255,.8); border-radius: 0; padding: 6px 8px;
   }
-  #props select, #props input[type=number] {
-    font: 17px var(--hand); color: var(--ink); background: #fff; height: 36px;
-    border: 2px solid var(--ink); border-radius: 12px 9px 13px 8px; padding: 0 6px;
-  }
-  #props input[type=number] { width: 70px; }
-  .colorchip { position: relative; width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--ink); overflow: hidden; flex: none; }
+  #props textarea { width: 100%; height: 44px; resize: vertical; }
+  #props select { height: 36px; }
+  #props select option { color: #111; }
+  #props input[type=number] { width: 72px; height: 36px; }
+  .colorchip { position: relative; width: 32px; height: 32px; border: 1px solid #fff; overflow: hidden; flex: none; }
   .colorchip input { position: absolute; inset: -6px; width: 44px; height: 44px; border: 0; padding: 0; cursor: pointer; }
-  #layerList { gap: 6px; }
-  #layerList button { max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
-  @media (max-width: 700px) {
-    #props textarea { width: 170px; }
-  }
+  #layerList button { max-width: 100%; overflow: hidden; text-overflow: ellipsis; justify-content: flex-start; }
+  .muted { color: var(--muted); font-size: 13px; margin: 0; }
 </style>
 </head>
 <body>
-<svg width="0" height="0" style="position:absolute" aria-hidden="true">
-  <filter id="rough"><feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="4"/><feDisplacementMap in="SourceGraphic" scale="3.2"/></filter>
-  <filter id="rough-big"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="9"/><feDisplacementMap in="SourceGraphic" scale="6"/></filter>
-</svg>
-<header>
-  <h1>Malaking <span>Edits</span> To-its</h1>
-  <nav class="tabs" aria-label="Mode">
-    <a class="tab" href="./">Photo</a>
-    <a class="tab active" href="layers.html" aria-current="page">Layers</a>
-  </nav>
-  <button id="newBtn" style="display:none">New<span class="hide-sm"> image</span></button>
-</header>
+<input id="file" type="file" accept="image/*" hidden>
+<div id="editor" class="app empty">
+  <header>
+    <h1 class="logo">Malaking <span>Edits</span></h1>
+    <nav class="pages" aria-label="Mode">
+      <a href="./">Photo</a>
+      <a class="on" href="layers.html" aria-current="page">Layers</a>
+    </nav>
+    <button id="newBtn" style="display:none">New<span class="hide-sm">&nbsp;image</span></button>
+    <button id="shareBtn" style="display:none">Save to Photos</button>
+    <button id="downloadBtn" class="primary">Download<span class="hide-sm">&nbsp;PNG</span></button>
+  </header>
 
-<main>
-  <input id="file" type="file" accept="image/*" hidden>
-  <section id="editor" class="empty">
-    <div class="toolbar">
-      <div class="group">
-        <button id="toolSelect" class="active" title="Move, resize and edit layers (V)">Select</button>
-        <button id="toolLift" title="Drag a box around something to make it a layer (L)">Lift</button>
-        <button id="toolText" title="Add text or find the text in the image (T)">Text</button>
-      </div>
-      <div class="sep"></div>
-      <div class="group">
-        <button id="zoomOut" title="Zoom out">−</button>
-        <button id="zoomFit" title="Fit to screen">Fit</button>
-        <button id="zoomIn" title="Zoom in">+</button>
-      </div>
-      <div class="sep"></div>
-      <div class="group">
-        <button id="undo" disabled title="Undo (Ctrl+Z)">Undo</button>
-        <button id="redo" disabled title="Redo (Ctrl+Y)">Redo</button>
-        <button id="listBtn" title="Show all layers">Layers (0)</button>
-      </div>
-    </div>
-
-    <div class="toolbar opts" id="liftOpts">
-      <div class="group">
-        <span class="bglabel">Cut</span>
-        <button class="pill active" data-cut="box" title="Take the whole box">Box</button>
-        <button class="pill" data-cut="color" title="Drop the colors around the edges of the box">Remove surrounding color</button>
-        <button class="pill" data-cut="ai" title="Let the AI cut out the main object in the box">AI cut-out</button>
-      </div>
-      <label id="tolWrap" style="display:none">Tolerance <input id="tol" type="range" min="2" max="60" value="18"></label>
-      <div class="sep"></div>
-      <div class="group">
-        <span class="bglabel">Leave behind</span>
-        <button class="pill active" data-leave="fill" title="Fill the spot with the surrounding colors">Filled spot</button>
-        <button class="pill" data-leave="empty" title="Leave a transparent hole">Empty</button>
-        <button class="pill" data-leave="copy" title="Keep the original where it was">Copy</button>
-      </div>
-      <span class="hint">→ Drag a box around the logo, QR code or shape. It becomes its own layer you can move.</span>
-    </div>
-
-    <div class="toolbar opts" id="textOpts">
-      <div class="group">
-        <button id="addText">+ Add text</button>
-        <button id="findText" title="Read the words in the image">Find text in image</button>
-        <button id="convertAll" style="display:none">Make all editable</button>
-      </div>
-      <span class="hint" id="textHint">→ Find text marks every line it can read. Tap a marked line to turn it into editable text.</span>
-    </div>
-
-    <div class="toolbar opts" id="props">
-      <div class="group" id="textProps">
-        <textarea id="pText" rows="1" aria-label="Text"></textarea>
-        <select id="pFont" aria-label="Font">
-          <option>Montserrat</option><option>Poppins</option><option>Archivo Black</option><option>Anton</option>
-          <option>Bebas Neue</option><option>Oswald</option><option>Roboto</option><option>Playfair Display</option>
-          <option>Pacifico</option><option>Dancing Script</option><option>Patrick Hand</option>
-        </select>
-        <label>Size <input id="pSize" type="number" min="6" max="600"></label>
-        <span class="colorchip" title="Text color"><input type="color" id="pColor" aria-label="Text color"></span>
-        <button class="pill" id="pBold" title="Bold">B</button>
-        <span class="bglabel">Outline</span>
-        <span class="colorchip" title="Outline color"><input type="color" id="pStrokeColor" aria-label="Outline color"></span>
-        <input id="pStroke" type="range" min="0" max="20" value="0" aria-label="Outline width" style="width:80px">
-        <button class="pill" data-align="left" title="Align left">Left</button>
-        <button class="pill" data-align="center" title="Align center">Center</button>
-        <button class="pill" data-align="right" title="Align right">Right</button>
-      </div>
-      <div class="sep"></div>
-      <div class="group">
-        <button class="pill" id="pForward" title="Bring forward (])">Forward</button>
-        <button class="pill" id="pBack" title="Send backward ([)">Backward</button>
-        <button class="pill" id="pDup" title="Duplicate">Duplicate</button>
-        <button class="pill" id="pDelete" title="Delete (Del)">Delete</button>
-      </div>
-    </div>
-
-    <div class="toolbar opts" id="listPanel">
-      <div class="group" id="layerList"></div>
-    </div>
-
-    <label id="drop" for="file">
-      <svg width="120" height="92" viewBox="0 0 120 92" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="filter:url(#rough)" aria-hidden="true">
-        <rect x="6" y="8" width="108" height="78" rx="6"/>
-        <path d="M14 76 L44 44 L62 62 L78 48 L106 76"/>
-        <circle cx="86" cy="28" r="9"/>
-      </svg>
-      <div class="big">Drop a poster here</div>
-      <p>or tap to pick one. Lift the logo, QR code or shapes into layers, and turn text into editable text.</p>
-    </label>
-
-    <div id="stage" class="mode-select">
+  <div class="work">
+    <section id="stage" class="mode-select">
+      <label id="drop" for="file">
+        <span class="tag">No poster yet</span>
+        <div class="big">Drop a poster here</div>
+        <p>or tap to pick one. Lift the logo, QR code or shapes into layers, and turn text into editable text.</p>
+      </label>
       <div id="wrap">
-        <span class="tape tl"></span><span class="tape br"></span>
         <canvas id="baseView"></canvas>
         <div id="band"></div>
+        <div class="dim w" id="dimW"><i></i><span></span><i></i></div>
+        <div class="dim h" id="dimH"><i></i><span></span><i></i></div>
       </div>
-    </div>
+      <div class="quick">
+        <button id="undo" disabled title="Undo (Ctrl+Z)">Undo</button>
+        <button id="redo" disabled title="Redo (Ctrl+Y)">Redo</button>
+        <span class="bar zoom"></span>
+        <button id="zoomOut" class="zoom" title="Zoom out">−</button>
+        <button id="zoomFit" class="zoom" title="Fit to screen">Fit</button>
+        <button id="zoomIn" class="zoom" title="Zoom in">+</button>
+      </div>
+    </section>
 
-    <div class="bottombar">
-      <div class="group">
-        <span class="info" id="info"></span>
+    <aside class="panel">
+      <nav class="tooltabs" style="--n:3" aria-label="Tools">
+        <button id="toolSelect" class="tooltab active" title="Move, resize and edit layers (V)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3l14 8-6 2-2 6z"/></svg>Select</button>
+        <button id="toolLift" class="tooltab" title="Drag a box around something to make it a layer (L)"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="12" height="12" stroke-dasharray="3 2"/><rect x="9" y="9" width="12" height="12"/></svg>Lift</button>
+        <button id="toolText" class="tooltab" title="Add text or find the text in the image (T)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14M12 5v14M9 19h6"/></svg>Text</button>
+      </nav>
+
+      <div class="card">
+        <!-- Select -->
+        <div class="opts show" id="selectOpts">
+          <div class="sec plain"><p class="muted">Tap a layer on the poster to move, resize or edit it. Use <b>Lift</b> to make new layers and <b>Text</b> for words.</p></div>
+        </div>
+
+        <!-- Lift -->
+        <div class="opts" id="liftOpts">
+          <div class="sec">
+            <span class="lbl">Cut</span>
+            <div class="row">
+              <button class="pill active" data-cut="box" title="Take the whole box">Box</button>
+              <button class="pill" data-cut="color" title="Drop the colors around the edges of the box">Remove surrounding color</button>
+              <button class="pill" data-cut="ai" title="Let the AI cut out the main object in the box">AI cut-out</button>
+            </div>
+            <label class="slider" id="tolWrap" style="display:none"><span>Tolerance</span><input id="tol" type="range" min="2" max="60" value="18"></label>
+          </div>
+          <div class="sec">
+            <span class="lbl">Leave behind</span>
+            <div class="row">
+              <button class="pill active" data-leave="fill" title="Fill the spot with the surrounding colors">Filled spot</button>
+              <button class="pill" data-leave="empty" title="Leave a transparent hole">Empty</button>
+              <button class="pill" data-leave="copy" title="Keep the original where it was">Copy</button>
+            </div>
+            <p class="hint">Drag a box around the logo, QR code or shape. It becomes its own layer you can move.</p>
+          </div>
+        </div>
+
+        <!-- Text -->
+        <div class="opts" id="textOpts">
+          <div class="sec">
+            <span class="lbl">Text</span>
+            <div class="row">
+              <button id="addText" class="pill">+ Add text</button>
+              <button id="findText" class="pill" title="Read the words in the image">Find text in image</button>
+              <button id="convertAll" class="primary" style="display:none">Make all editable</button>
+            </div>
+            <p class="hint" id="textHint">Find text marks every line it can read. Tap a marked line to turn it into editable text.</p>
+          </div>
+        </div>
+
+        <!-- The selected layer -->
+        <div class="opts" id="props">
+          <div class="sec">
+            <span class="lbl">Selected layer</span>
+            <div id="textProps">
+              <textarea id="pText" rows="1" aria-label="Text"></textarea>
+              <div class="row">
+                <select id="pFont" aria-label="Font">
+                  <option>Montserrat</option><option>Poppins</option><option>Archivo Black</option><option>Anton</option>
+                  <option>Bebas Neue</option><option>Oswald</option><option>Roboto</option><option>Playfair Display</option>
+                  <option>Pacifico</option><option>Dancing Script</option><option>Patrick Hand</option>
+                </select>
+                <input id="pSize" type="number" min="6" max="600" aria-label="Size">
+                <span class="colorchip" title="Text color"><input type="color" id="pColor" aria-label="Text color"></span>
+                <button class="pill" id="pBold" title="Bold">B</button>
+              </div>
+              <div class="row">
+                <span class="info">Outline</span>
+                <span class="colorchip" title="Outline color"><input type="color" id="pStrokeColor" aria-label="Outline color"></span>
+                <input id="pStroke" type="range" min="0" max="20" value="0" aria-label="Outline width">
+              </div>
+              <div class="row">
+                <button class="pill" data-align="left" title="Align left">Left</button>
+                <button class="pill" data-align="center" title="Align center">Center</button>
+                <button class="pill" data-align="right" title="Align right">Right</button>
+              </div>
+            </div>
+            <div class="row">
+              <button class="pill" id="pForward" title="Bring forward (])">Forward</button>
+              <button class="pill" id="pBack" title="Send backward ([)">Backward</button>
+              <button class="pill" id="pDup" title="Duplicate">Duplicate</button>
+              <button class="pill" id="pDelete" title="Delete (Del)">Delete</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- All layers -->
+        <div class="sec" id="listPanel">
+          <span class="lbl">All layers · <span id="listCount">0</span></span>
+          <div class="row" id="layerList"></div>
+          <p class="info" id="info" style="margin:10px 0 0"></p>
+        </div>
       </div>
-      <div class="group">
-        <button id="shareBtn" style="display:none"><span class="hide-sm">Share / </span>Save to Photos</button>
-        <button id="downloadBtn" class="primary">Download<span class="hide-sm"> PNG</span></button>
-      </div>
-    </div>
-  </section>
-</main>
+    </aside>
+  </div>
+</div>
 <footer>© OV Apps 2026</footer>
 
 <div id="toast"></div>
@@ -256,6 +250,7 @@ function setTool(t) {
   for (const [id, name] of [["toolSelect", "select"], ["toolLift", "lift"], ["toolText", "text"]]) $(id).classList.toggle("active", name === t);
   stage.classList.remove("mode-select", "mode-lift", "mode-text");
   stage.classList.add("mode-" + t);
+  $("selectOpts").classList.toggle("show", t === "select");
   $("liftOpts").classList.toggle("show", t === "lift");
   $("textOpts").classList.toggle("show", t === "text");
   if (t === "lift") { select(null); }
@@ -315,6 +310,10 @@ function render() {
   });
   updateProps(); updateList();
   $("info").textContent = `${base.width} × ${base.height} px · ${layers.length} layer${layers.length === 1 ? "" : "s"}`;
+  Object.assign($("dimW").style, { left: 0, width: base.width * s + "px" });
+  Object.assign($("dimH").style, { top: 0, height: base.height * s + "px" });
+  $("dimW").querySelector("span").textContent = base.width + " px";
+  $("dimH").querySelector("span").textContent = base.height + " px";
 }
 new ResizeObserver(() => base && render()).observe(stage);
 const setZoom = (z) => { zoom = Math.max(1, Math.min(8, z)); render(); };
@@ -399,7 +398,7 @@ async function liftBox(box) {
   const L = { id: uid++, type: "image", name: "Piece " + (layers.filter((l) => l.type === "image").length + 1), canvas: piece, x: box.x, y: box.y, scale: 1 };
   layers.push(L);
   setTool("select"); select(L);
-  toast("Lifted! Drag it to move, or pull the yellow corner to resize");
+  toast("Lifted! Drag it to move, or drag the white corner to resize");
 }
 
 // Remove the colors that touch the edge of the box (flood fill from the border)
@@ -727,9 +726,9 @@ function deleteSelected() {
 $("pDelete").onclick = deleteSelected;
 
 // ---------- Layer list ----------
-$("listBtn").onclick = () => { $("listPanel").classList.toggle("show"); $("listBtn").classList.toggle("active"); };
+
 function updateList() {
-  $("listBtn").textContent = `Layers (${layers.length})`;
+  $("listCount").textContent = layers.length;
   const box = $("layerList"); box.innerHTML = "";
   if (!layers.length) { box.innerHTML = '<span class="bglabel">No layers yet. Use Lift or Text.</span>'; return; }
   [...layers].reverse().forEach((L) => {

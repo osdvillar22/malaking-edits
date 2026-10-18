@@ -3,184 +3,200 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-<title>Malaking Edits To-its</title>
+<title>Malaking Edits</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&family=Rock+Salt&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<!-- Wobbly pencil lines: every outline passes through these filters -->
-<svg width="0" height="0" style="position:absolute" aria-hidden="true">
-  <filter id="rough"><feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="4"/><feDisplacementMap in="SourceGraphic" scale="3.2"/></filter>
-  <filter id="rough-big"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="9"/><feDisplacementMap in="SourceGraphic" scale="6"/></filter>
-</svg>
-<header>
-  <h1>Malaking <span>Edits</span> To-its</h1>
-  <nav class="tabs" aria-label="Mode">
-    <a class="tab active" href="./" aria-current="page">Photo</a>
-    <a class="tab" href="layers.html">Layers</a>
-  </nav>
-  <button id="newBtn" style="display:none">New<span class="hide-sm"> photo</span></button>
-</header>
+<input id="file" type="file" accept="image/*" hidden>
+<div id="editor" class="app empty">
+  <header>
+    <h1 class="logo">Malaking <span>Edits</span></h1>
+    <nav class="pages" aria-label="Mode">
+      <a class="on" href="./" aria-current="page">Photo</a>
+      <a href="layers.html">Layers</a>
+    </nav>
+    <button id="newBtn" style="display:none">New<span class="hide-sm">&nbsp;photo</span></button>
+    <button id="shareBtn" style="display:none">Save to Photos</button>
+    <button id="downloadBtn" class="primary">Download<span class="hide-sm">&nbsp;PNG</span></button>
+  </header>
 
-<main>
-  <input id="file" type="file" accept="image/*" hidden>
-  <section id="editor" class="empty">
-    <div class="toolbar">
-      <button id="removeBgBtn" class="primary" title="Remove the background with AI">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.5l2.4 6.3 6.6.4-5.1 4.2 1.7 6.5L12 16.3l-5.6 3.6 1.7-6.5L3 9.2l6.6-.4z"/></svg>
-        Remove background</button>
-      <div class="sep"></div>
-      <div class="group">
-        <button id="toolErase" title="Erase leftover background (E)">Erase</button>
-        <button id="toolMagic" title="Tap a leftover patch to erase similar connected colors (M)">Magic</button>
-        <button id="toolRestore" title="Paint back parts of the original photo (R)">Restore</button>
-        <button id="toolMove" class="active" title="Drag to move around when zoomed in (hold Space)">Move</button>
-      </div>
-      <div class="sep"></div>
-      <div class="group" id="brushOpts" style="display:none">
-        <label>Size <input id="size" type="range" min="4" max="150" value="30"></label>
-        <label>Softness <input id="soft" type="range" min="0" max="100" value="40"></label>
-      </div>
-      <div class="group" id="magicOpts" style="display:none">
-        <label>Tolerance <input id="tol" type="range" min="1" max="80" value="20"></label>
-      </div>
-      <div class="group">
-        <button id="zoomOut" title="Zoom out">−</button>
-        <button id="zoomFit" title="Fit to screen">Fit</button>
-        <button id="zoomIn" title="Zoom in">+</button>
-      </div>
-      <div class="sep"></div>
-      <div class="group">
-        <button id="undo" disabled title="Undo (Ctrl+Z)">Undo</button>
-        <button id="redo" disabled title="Redo (Ctrl+Y)">Redo</button>
-        <button id="compareBtn" title="Press and hold to see the original photo (hold C)">Hold to compare</button>
-        <button id="expandBtn" title="Add space around the photo">Expand</button>
-        <button id="blurBtn" title="Blur faces or anything else">Blur</button>
-        <button id="cropBtn" title="Crop the photo">Crop</button>
-      </div>
-    </div>
-
-    <div class="toolbar" id="expandPanel">
-      <div class="group">
-        <span class="bglabel">Shape</span>
-        <button class="pill active" data-ratio="orig">Original</button>
-        <button class="pill" data-ratio="1:1">1:1</button>
-        <button class="pill" data-ratio="4:5">4:5</button>
-        <button class="pill" data-ratio="9:16">9:16</button>
-        <button class="pill" data-ratio="16:9">16:9</button>
-        <button class="pill" data-ratio="4:3">4:3</button>
-        <button class="pill" data-ratio="3:2">3:2</button>
-      </div>
-      <div class="sep"></div>
-      <label>Border / extra space <input id="pad" type="range" min="0" max="60" value="0"></label>
-      <div class="sep"></div>
-      <div class="group">
-        <span class="bglabel">Position</span>
-        <div class="anchor" id="anchor"></div>
-      </div>
-      <div class="sep"></div>
-      <div class="group">
-        <span class="bglabel">Extend photo by</span>
-        <button class="pill active" data-ext="mirror">Mirror</button>
-        <button class="pill" data-ext="stretch">Stretch</button>
-      </div>
-      <button class="pill" id="expandReset">Reset</button>
-      <span class="hint">→ The new space takes the Background chosen below. <b>1:1</b> + <b>White</b> makes a square photo with white space; <b>Original</b> extends the photo's own background.</span>
-    </div>
-
-    <div class="toolbar" id="cropPanel">
-      <div class="group">
-        <span class="bglabel">Ratio</span>
-        <button class="pill active" data-crop="free">Free</button>
-        <button class="pill" data-crop="orig">Original</button>
-        <button class="pill" data-crop="1:1">1:1</button>
-        <button class="pill" data-crop="2:3">2:3</button>
-        <button class="pill" data-crop="3:2">3:2</button>
-        <button class="pill" data-crop="3:4">3:4</button>
-        <button class="pill" data-crop="4:3">4:3</button>
-        <button class="pill" data-crop="4:5">4:5</button>
-        <button class="pill" data-crop="5:4">5:4</button>
-        <button class="pill" data-crop="9:16">9:16</button>
-        <button class="pill" data-crop="16:9">16:9</button>
-      </div>
-      <span class="info" id="cropSize"></span>
-      <div class="group">
-        <button id="cropCancel">Cancel</button>
-        <button id="cropApply" class="primary">Crop</button>
-      </div>
-      <span class="hint">→ Drag the box to move it, pull a yellow corner to resize, or drag on the dark area to draw a new box. Enter crops, Esc cancels.</span>
-    </div>
-
-    <div class="toolbar" id="blurPanel">
-      <div class="group">
-        <span class="bglabel">Effect</span>
-        <button class="pill active" data-fx="blur">Blur</button>
-        <button class="pill" data-fx="pixel">Pixelate</button>
-        <button class="pill" data-fx="black">Black out</button>
-      </div>
-      <label>Strength <input id="fxStrength" type="range" min="5" max="100" value="40"></label>
-      <div class="sep"></div>
-      <div class="group">
-        <button id="findFaces" title="Find every face in the photo">Find faces</button>
-        <button id="applyFaces" class="primary" style="display:none">Blur faces</button>
-      </div>
-      <div class="sep"></div>
-      <div class="group">
-        <span class="bglabel">By hand</span>
-        <button id="toolBlurBrush" title="Paint the effect anywhere">Brush</button>
-        <button id="toolBlurBox" title="Drag a box over anything">Drag a box</button>
-      </div>
-      <div class="group">
-        <span class="bglabel">Shape</span>
-        <button class="pill active" data-fxshape="oval">Oval</button>
-        <button class="pill" data-fxshape="rect">Rectangle</button>
-      </div>
-      <span class="hint">→ Find faces marks every face. Tap a mark to skip that face, then apply. Or use Brush / Drag a box on anything. Restore brings back the original.</span>
-    </div>
-
-    <label id="drop" for="file">
-      <svg width="120" height="92" viewBox="0 0 120 92" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="filter:url(#rough)" aria-hidden="true">
-        <rect x="6" y="8" width="108" height="78" rx="6"/>
-        <path d="M14 76 L44 44 L62 62 L78 48 L106 76"/>
-        <circle cx="86" cy="28" r="9"/>
-      </svg>
-      <div class="big">Drop a photo here</div>
-      <p>or tap to pick one. Everything happens on your device — your photo is never uploaded.</p>
-    </label>
-
-    <div id="stage" class="tool-move">
+  <div class="work">
+    <section id="stage" class="tool-move" data-tab="cut">
+      <label id="drop" for="file">
+        <span class="tag">No photo yet</span>
+        <div class="big">Drop a photo here</div>
+        <p>or tap to pick one. Everything happens on your device — your photo is never uploaded.</p>
+      </label>
       <div id="wrap" class="checker">
-        <span class="tape tl"></span><span class="tape br"></span>
         <canvas id="bgView"></canvas>
         <canvas id="canvas"></canvas>
         <div id="fxBand"></div>
+        <div class="dim w" id="dimW"><i></i><span></span><i></i></div>
+        <div class="dim h" id="dimH"><i></i><span></span><i></i></div>
       </div>
-    </div>
+      <div class="quick">
+        <button id="toolMove" class="active" title="Drag to move around when zoomed in (hold Space)">Move</button>
+        <span class="bar"></span>
+        <button id="undo" disabled title="Undo (Ctrl+Z)">Undo</button>
+        <button id="redo" disabled title="Redo (Ctrl+Y)">Redo</button>
+        <span class="bar"></span>
+        <button id="compareBtn" title="Press and hold to see the original photo (hold C)">Hold to compare</button>
+        <span class="bar zoom"></span>
+        <button id="zoomOut" class="zoom" title="Zoom out">−</button>
+        <button id="zoomFit" class="zoom" title="Fit to screen">Fit</button>
+        <button id="zoomIn" class="zoom" title="Zoom in">+</button>
+      </div>
+    </section>
 
-    <div class="bottombar">
-      <div class="group">
-        <span class="bglabel">Background</span>
-        <button class="swatch checker active" data-bg="transparent" title="Transparent" aria-label="Transparent"></button>
-        <button class="swatch" data-bg="color" data-color="#ffffff" style="background:#fff" title="White" aria-label="White"></button>
-        <button class="swatch" data-bg="color" data-color="#000000" style="background:#000" title="Black" aria-label="Black"></button>
-        <button class="swatch" id="bgColorSwatch" data-bg="custom" title="Pick any color" aria-label="Pick a color">
-          <input type="color" id="bgColor" value="#3b82f6">
-        </button>
-        <button class="pill" data-bg="original" title="Keep the photo's own background (extended when you use Expand)">Original</button>
-        <button class="pill" data-bg="blur" title="Blurred version of the original background">Blur</button>
-        <button class="pill" data-bg="photo" title="Use another photo as the background">Photo…</button>
-        <input type="file" id="bgFile" accept="image/*" hidden>
+    <aside class="panel">
+      <nav class="tooltabs" role="tablist" aria-label="Tools">
+        <button class="tooltab active" data-tab="cut" role="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.1 15.9M14.5 14.5 20 20M8.1 8.1 12 12"/></svg>Cut out</button>
+        <button class="tooltab" data-tab="blur" role="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="9" cy="10" r="1.2"/><circle cx="15" cy="10" r="1.2"/><circle cx="12" cy="15" r="1.2"/></svg>Blur</button>
+        <button class="tooltab" data-tab="crop" role="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2v14a2 2 0 0 0 2 2h14M18 22V8a2 2 0 0 0-2-2H2"/></svg>Crop</button>
+        <button class="tooltab" data-tab="frame" role="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18"/><rect x="7" y="7" width="10" height="7"/></svg>Frame</button>
+      </nav>
+
+      <div class="card">
+        <!-- Cut out -->
+        <div class="pane" data-pane="cut">
+          <div class="sec plain">
+            <button id="removeBgBtn" class="primary big" title="Remove the background with AI">Remove background</button>
+            <p class="hint">The first time, the AI downloads once (about 90 MB).</p>
+          </div>
+          <div class="sec">
+            <span class="lbl">Touch up</span>
+            <div class="row">
+              <button id="toolErase" class="pill" title="Erase leftover background (E)">Erase</button>
+              <button id="toolMagic" class="pill" title="Tap a leftover patch to erase similar connected colors (M)">Magic</button>
+              <button id="toolRestore" class="pill" title="Paint back parts of the original photo (R)">Restore</button>
+            </div>
+            <div id="cutBrushSlot">
+              <div id="brushOpts" style="display:none">
+                <label class="slider"><span>Size</span><input id="size" type="range" min="4" max="150" value="30"></label>
+                <label class="slider"><span>Softness</span><input id="soft" type="range" min="0" max="100" value="40"></label>
+              </div>
+            </div>
+            <div id="magicOpts" style="display:none">
+              <label class="slider"><span>Tolerance</span><input id="tol" type="range" min="1" max="80" value="20"></label>
+            </div>
+            <p class="hint"><b>Restore</b> paints the original photo back in.</p>
+          </div>
+        </div>
+
+        <!-- Blur -->
+        <div class="pane" data-pane="blur" hidden>
+          <div class="sec">
+            <span class="lbl">Effect</span>
+            <div class="row">
+              <button class="pill active" data-fx="blur">Blur</button>
+              <button class="pill" data-fx="pixel">Pixelate</button>
+              <button class="pill" data-fx="black">Black out</button>
+            </div>
+            <label class="slider"><span>Strength</span><input id="fxStrength" type="range" min="5" max="100" value="40"></label>
+          </div>
+          <div class="sec">
+            <span class="lbl">Faces</span>
+            <div class="row">
+              <button id="findFaces" class="pill" title="Find every face in the photo">Find faces</button>
+              <button id="applyFaces" class="primary" style="display:none">Blur faces</button>
+            </div>
+            <p class="hint">Tap a marked face to skip it.</p>
+          </div>
+          <div class="sec">
+            <span class="lbl">By hand</span>
+            <div class="row">
+              <button id="toolBlurBrush" class="pill" title="Paint the effect anywhere">Brush</button>
+              <button id="toolBlurBox" class="pill" title="Drag a box over anything">Drag a box</button>
+            </div>
+            <div id="blurBrushSlot"></div>
+            <div class="row">
+              <button class="pill active" data-fxshape="oval">Oval</button>
+              <button class="pill" data-fxshape="rect">Rectangle</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Crop -->
+        <div class="pane" data-pane="crop" id="cropPanel" hidden>
+          <div class="sec">
+            <span class="lbl">Ratio</span>
+            <div class="row">
+              <button class="pill active" data-crop="free">Free</button>
+              <button class="pill" data-crop="orig">Original</button>
+              <button class="pill" data-crop="1:1">1:1</button>
+              <button class="pill" data-crop="2:3">2:3</button>
+              <button class="pill" data-crop="3:2">3:2</button>
+              <button class="pill" data-crop="3:4">3:4</button>
+              <button class="pill" data-crop="4:3">4:3</button>
+              <button class="pill" data-crop="4:5">4:5</button>
+              <button class="pill" data-crop="5:4">5:4</button>
+              <button class="pill" data-crop="9:16">9:16</button>
+              <button class="pill" data-crop="16:9">16:9</button>
+            </div>
+          </div>
+          <div class="sec plain">
+            <div class="row">
+              <span class="info found" id="cropSize"></span>
+              <button id="cropCancel" title="Reset the box to the whole photo (Esc)">Reset</button>
+              <button id="cropApply" class="primary" title="Crop (Enter)">Crop</button>
+            </div>
+            <p class="hint">Drag the box to move it, drag a corner to resize, or drag outside it to draw a new box.</p>
+          </div>
+        </div>
+
+        <!-- Frame: the space around and behind the photo -->
+        <div class="pane" data-pane="frame" hidden>
+          <div class="sec">
+            <span class="lbl">Shape</span>
+            <div class="row">
+              <button class="pill active" data-ratio="orig">Original</button>
+              <button class="pill" data-ratio="1:1">1:1</button>
+              <button class="pill" data-ratio="4:5">4:5</button>
+              <button class="pill" data-ratio="9:16">9:16</button>
+              <button class="pill" data-ratio="16:9">16:9</button>
+              <button class="pill" data-ratio="4:3">4:3</button>
+              <button class="pill" data-ratio="3:2">3:2</button>
+            </div>
+            <label class="slider"><span>Border</span><input id="pad" type="range" min="0" max="60" value="0"></label>
+            <p class="info" id="info" style="margin:10px 0 0"></p>
+          </div>
+          <div class="sec">
+            <span class="lbl">Fill</span>
+            <div class="row" id="bgPick">
+              <button class="swatch checker active" data-bg="transparent" title="Transparent" aria-label="Transparent"></button>
+              <button class="swatch" data-bg="color" data-color="#ffffff" style="background:#fff" title="White" aria-label="White"></button>
+              <button class="swatch" data-bg="color" data-color="#000000" style="background:#000" title="Black" aria-label="Black"></button>
+              <button class="swatch" id="bgColorSwatch" data-bg="custom" title="Pick any color" aria-label="Pick a color">
+                <input type="color" id="bgColor" value="#3b82f6">
+              </button>
+              <button class="pill" data-bg="original" title="Keep the photo's own background, extended into the new space">Original</button>
+              <button class="pill" data-bg="blur" title="Blurred version of the photo's background">Blur</button>
+              <button class="pill" data-bg="photo" title="Use another photo as the background">Photo…</button>
+              <input type="file" id="bgFile" accept="image/*" hidden>
+            </div>
+            <div class="row">
+              <span class="info">Extend with</span>
+              <button class="pill active" data-ext="mirror">Mirror</button>
+              <button class="pill" data-ext="stretch">Stretch</button>
+            </div>
+            <p class="hint"><b>1:1</b> + <b>White</b> makes a square photo with a white border. <b>Original</b> extends the photo's own background.</p>
+          </div>
+          <div class="sec">
+            <span class="lbl">Photo position</span>
+            <div class="row">
+              <div class="anchor" id="anchor"></div>
+              <span style="flex:1"></span>
+              <button class="pill" id="expandReset">Reset frame</button>
+            </div>
+          </div>
+        </div>
       </div>
-      <div class="group">
-        <span class="info" id="info"></span>
-        <button id="shareBtn" style="display:none"><span class="hide-sm">Share / </span>Save to Photos</button>
-        <button id="downloadBtn" class="primary">Download<span class="hide-sm"> PNG</span></button>
-      </div>
-    </div>
-  </section>
-</main>
+    </aside>
+  </div>
+</div>
 <footer>© OV Apps 2026</footer>
 
 <div id="cursor"></div>
@@ -261,6 +277,7 @@ async function handleFile(file) {
     editor.classList.remove("empty"); $("newBtn").style.display = "";
     setTool("move");
     resetExpand();
+    if (tab === "crop") openCrop();
   } catch (err) {
     console.error(err);
     alert("Couldn't open that image: " + (err?.message || err));
@@ -331,6 +348,7 @@ function applyZoom(anchor) {
   }
   renderMarks();
   positionCrop();
+  positionDims();
   // keep the point under the anchor roughly in place
   if (anchor && prev.width) {
     const rx = (anchor.x - prev.left) / prev.width, ry = (anchor.y - prev.top) / prev.height;
@@ -359,6 +377,7 @@ function setTool(t) {
   stage.className = "tool-" + t;
   const brushy = t === "erase" || t === "restore" || t === "blurbrush";
   $("brushOpts").style.display = brushy ? "" : "none";
+  if (brushy) $(t === "blurbrush" ? "blurBrushSlot" : "cutBrushSlot").appendChild($("brushOpts"));
   $("magicOpts").style.display = t === "magic" ? "" : "none";
   if (!brushy) cursorEl.style.display = "none";
 }
@@ -523,13 +542,11 @@ function openCrop() {
   for (const c of ["nw", "ne", "sw", "se"]) { const h = document.createElement("div"); h.className = "crop-h " + c; h.dataset.c = c; box.appendChild(h); }
   layer.appendChild(box); wrap.appendChild(layer);
   layer.addEventListener("pointerdown", cropPointerDown);
-  $("cropPanel").classList.add("open"); $("cropBtn").classList.add("active");
   applyZoom();
 }
 function closeCrop() {
   if (!crop && !$("cropLayer")) return;
   crop = null; $("cropLayer")?.remove();
-  $("cropPanel").classList.remove("open"); $("cropBtn").classList.remove("active");
   if (original) applyZoom();
 }
 function positionCrop() {
@@ -541,6 +558,7 @@ function positionCrop() {
   // corner handles shrink when the box is small on screen
   $("cropBox").style.setProperty("--hs", Math.round(Math.max(12, Math.min(24, Math.min(crop.w, crop.h) * s * 0.2))) + "px");
   $("cropSize").textContent = `${Math.round(crop.w)} × ${Math.round(crop.h)} px`;
+  positionDims();
 }
 function cropPointerDown(e) {
   e.stopPropagation(); e.preventDefault();
@@ -595,10 +613,10 @@ function applyCrop() {
   canvas.width = w; canvas.height = h; ctx.drawImage(nc, 0, 0);
   cutout = null; faces = [];          // the saved AI result and face marks belong to the old size
   closeCrop(); layout(); afterEdit();
+  if (tab === "crop") openCrop();     // ready for another crop
   toast(`Cropped to ${w} × ${h} px`);
 }
-$("cropBtn").onclick = () => (crop ? closeCrop() : openCrop());
-$("cropCancel").onclick = closeCrop;
+$("cropCancel").onclick = () => { closeCrop(); openCrop(); };
 $("cropApply").onclick = applyCrop;
 document.querySelectorAll("[data-crop]").forEach((b) => b.onclick = () => {
   cropRatio = ratioOf(b.dataset.crop);
@@ -606,6 +624,33 @@ document.querySelectorAll("[data-crop]").forEach((b) => b.onclick = () => {
   if (cropRatio) crop = fitCrop(cropRatio);
   positionCrop();
 });
+
+// ---------- Tool tabs: Cut out / Blur / Crop / Frame ----------
+let tab = "cut";
+const tabTools = { cut: ["erase", "magic", "restore"], blur: ["blurbrush", "blurbox"] };
+function setTab(t) {
+  tab = t;
+  document.querySelectorAll(".tooltab").forEach((b) => { const on = b.dataset.tab === t; b.classList.toggle("active", on); b.setAttribute("aria-selected", on); });
+  document.querySelectorAll(".pane").forEach((p) => (p.hidden = p.dataset.pane !== t));
+  stage.dataset.tab = t;
+  // a brush from another tab would be invisible, so go back to Move
+  if (tool !== "move" && !(tabTools[t] || []).includes(tool)) setTool("move");
+  if (t === "crop") openCrop(); else closeCrop();
+  if (original) applyZoom();
+}
+document.querySelectorAll(".tooltab").forEach((b) => (b.onclick = () => setTab(b.dataset.tab)));
+
+// Architect-style dimension lines: the whole picture, or the crop box while cropping
+function positionDims() {
+  if (!original) return;
+  const s = fitScale() * zoom;
+  let x = 0, y = 0, w = doc.w, h = doc.h;
+  if (crop) { x = doc.ox + crop.x; y = doc.oy + crop.y; w = crop.w; h = crop.h; }
+  Object.assign($("dimW").style, { left: x * s + "px", width: w * s + "px" });
+  Object.assign($("dimH").style, { top: y * s + "px", height: h * s + "px" });
+  $("dimW").querySelector("span").textContent = Math.round(w) + " px";
+  $("dimH").querySelector("span").textContent = Math.round(h) + " px";
+}
 
 // ---------- Expand ----------
 function layout() {
@@ -661,15 +706,11 @@ $("pad").addEventListener("input", () => {
   clearTimeout(padTimer); padTimer = setTimeout(layout, 60);
 });
 $("expandReset").onclick = resetExpand;
-$("expandBtn").onclick = () => {
-  const open = $("expandPanel").classList.toggle("open");
-  $("expandBtn").classList.toggle("active", open);
-  applyZoom();
-};
+
 function selectBgButton(btn) {
-  document.querySelectorAll(".bottombar [data-bg]").forEach((b) => b.classList.toggle("active", b === btn));
+  document.querySelectorAll("#bgPick [data-bg]").forEach((b) => b.classList.toggle("active", b === btn));
 }
-document.querySelectorAll(".bottombar [data-bg]").forEach((b) => b.addEventListener("click", (e) => {
+document.querySelectorAll("#bgPick [data-bg]").forEach((b) => b.addEventListener("click", (e) => {
   const t = b.dataset.bg;
   if (t === "custom") return; // handled by the color input
   if (t === "photo") { $("bgFile").click(); return; }
@@ -728,7 +769,7 @@ document.addEventListener("keydown", (e) => {
   if (!original || e.target.tagName === "INPUT" && e.target.type !== "range") return;
   const k = e.key.toLowerCase();
   if (crop && k === "enter") { e.preventDefault(); applyCrop(); return; }
-  if (crop && k === "escape") { closeCrop(); return; }
+  if (crop && k === "escape") { closeCrop(); openCrop(); return; }
   if ((e.ctrlKey || e.metaKey) && k === "z" && !e.shiftKey) { e.preventDefault(); undo(); }
   else if ((e.ctrlKey || e.metaKey) && (k === "y" || (k === "z" && e.shiftKey))) { e.preventDefault(); redo(); }
   else if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -970,12 +1011,7 @@ document.querySelectorAll("[data-fxshape]").forEach((b) => b.onclick = () => {
 });
 $("toolBlurBrush").onclick = () => setTool("blurbrush");
 $("toolBlurBox").onclick = () => setTool("blurbox");
-$("blurBtn").onclick = () => {
-  const open = $("blurPanel").classList.toggle("open");
-  $("blurBtn").classList.toggle("active", open);
-  if (!open && (tool === "blurbrush" || tool === "blurbox")) setTool("move");
-  applyZoom();
-};
+
 function showBand(a, b) {
   const r = canvas.getBoundingClientRect(), wr = wrap.getBoundingClientRect(), k = r.width / canvas.width;
   const x = Math.min(a.x, b.x), y = Math.min(a.y, b.y);
